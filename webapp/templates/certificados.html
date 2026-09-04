@@ -47,7 +47,7 @@
       <tr>
         <td>{{ group.sociedad }}</td>
         <td>{{ group.nit }}</td>
-        <td>{{ group.boletines|length }}</td>
+        <td>{{ group["boletines"]|length }}</td>
         <td><a href="/print/certificado/{{ year }}/{{ month }}/{{ group.key }}" target="_blank">Certificado</a></td>
       </tr>
       {% else %}

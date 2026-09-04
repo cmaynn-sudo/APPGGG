@@ -65,7 +65,7 @@
 <section class="panel section-gap">
   <div class="panel-title">
     <h2>Sociedades de la entrega</h2>
-    <span>{{ entrega.items|length }} registro(s)</span>
+    <span>{{ entrega["items"]|length }} registro(s)</span>
   </div>
   <table class="data-table">
     <thead>
@@ -82,7 +82,7 @@
       </tr>
     </thead>
     <tbody>
-      {% for item in entrega.items %}
+      {% for item in entrega["items"] %}
       <tr>
         <td>{{ item.proveedor }}</td>
         <td>{{ item.codigo }}</td>

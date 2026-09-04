@@ -22,13 +22,13 @@
     <label>Mes regalías
       <select name="mes_regalias">
         {% for row in regalias %}
-        <option value="{{ row.mes }}" {% if row.mes == entrega.parametros.mes_regalias %}selected{% endif %}>{{ row.mes }}</option>
+        <option value="{{ row.mes }}" {% if row.mes == entrega['parametros']['mes_regalias'] %}selected{% endif %}>{{ row.mes }}</option>
         {% endfor %}
       </select>
     </label>
-    <label>Dolar<input name="dolar" value="{{ entrega.parametros.dolar }}" inputmode="decimal"></label>
-    <label>OZ AU<input name="oz_au" value="{{ entrega.parametros.oz_au }}" inputmode="decimal"></label>
-    <label>OZ AG<input name="oz_ag" value="{{ entrega.parametros.oz_ag }}" inputmode="decimal"></label>
+    <label>Dolar<input name="dolar" value="{{ entrega['parametros']['dolar'] }}" inputmode="decimal"></label>
+    <label>OZ AU<input name="oz_au" value="{{ entrega['parametros']['oz_au'] }}" inputmode="decimal"></label>
+    <label>OZ AG<input name="oz_ag" value="{{ entrega['parametros']['oz_ag'] }}" inputmode="decimal"></label>
     <button class="button" type="submit">Guardar parametros</button>
   </form>
 </section>
