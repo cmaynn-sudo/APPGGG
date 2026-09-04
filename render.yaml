@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: recepcion-web
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python webapp/app.py --no-refresh-templates
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.5

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Recepcion{% endblock %}</title>
+    <link rel="stylesheet" href="/static/app.css">
+    <link rel="stylesheet" href="/static/print.css">
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <img src="/static/generated/logo.png" alt="">
+        <div>
+          <strong>Green Global</strong>
+          <span>Recepcion</span>
+        </div>
+      </div>
+      <nav>
+        <a href="/">Panel</a>
+        <a href="/documentos">Documentos</a>
+        <a href="/leyes">Leyes</a>
+        <a href="/boletines">Boletines</a>
+        <a href="/certificados">Certificados</a>
+        <a href="/sociedades">Sociedades</a>
+        <a href="/regalias">Regalias</a>
+      </nav>
+    </aside>
+    <main class="page">
+      {% block content %}{% endblock %}
+    </main>
+  </body>
+</html>

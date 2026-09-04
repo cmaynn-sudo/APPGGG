@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Certificados{% endblock %}
+
+{% block content %}
+<header class="page-header">
+  <div>
+    <p class="eyebrow">Modulo</p>
+    <h1>Certificados de regalías</h1>
+    <p>Agrupados por sociedad y mes.</p>
+  </div>
+</header>
+
+<section class="panel">
+  <div class="panel-title">
+    <h2>{{ year }} / {{ month }}</h2>
+    <span>{{ groups|length }} sociedad(es)</span>
+  </div>
+  <form class="form-grid" method="get" action="/certificados">
+    <label>Año
+      <select name="year">
+        {% for item in years %}
+        <option value="{{ item }}" {% if item == year %}selected{% endif %}>{{ item }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Mes
+      <select name="month">
+        {% for item in months %}
+        <option value="{{ item }}" {% if item == month %}selected{% endif %}>{{ item }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="button" type="submit">Revisar</button>
+  </form>
+  <table class="data-table section-gap">
+    <thead>
+      <tr>
+        <th>Sociedad</th>
+        <th>NIT</th>
+        <th>Boletines</th>
+        <th>Documento</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for group in groups %}
+      <tr>
+        <td>{{ group.sociedad }}</td>
+        <td>{{ group.nit }}</td>
+        <td>{{ group.boletines|length }}</td>
+        <td><a href="/print/certificado/{{ year }}/{{ month }}/{{ group.key }}" target="_blank">Certificado</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4">No hay boletines para este periodo.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

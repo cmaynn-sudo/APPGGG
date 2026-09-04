@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Sociedades{% endblock %}
+
+{% block content %}
+<header class="page-header">
+  <div>
+    <p class="eyebrow">Datos base</p>
+    <h1>Sociedades</h1>
+  </div>
+</header>
+
+<section class="panel">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Sociedad</th>
+        <th>NIT</th>
+        <th>RUCOM</th>
+        <th>Municipio</th>
+        <th>Prefijo</th>
+        <th>Consecutivo</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in sociedades %}
+      <tr>
+        <td>{{ row.sociedad }}</td>
+        <td>{{ row.nit }}</td>
+        <td>{{ row.rucom }}</td>
+        <td>{{ row.municipio }}</td>
+        <td>{{ row.prefijo }}</td>
+        <td>{{ row.consecutivo }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

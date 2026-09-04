@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block title %}Error{% endblock %}
+
+{% block content %}
+<section class="panel">
+  <div class="panel-title">
+    <h2>No se pudo completar la accion</h2>
+  </div>
+  <p class="muted">{{ message }}</p>
+  <a class="button" href="/">Volver al panel</a>
+</section>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}{{ template.title }}{% endblock %}
+
+{% block content %}
+<header class="page-header">
+  <div>
+    <p class="eyebrow">Plantilla</p>
+    <h1>{{ template.title }}</h1>
+    <p>{{ template.purpose }}</p>
+  </div>
+  <div class="header-actions">
+    <a class="button button-secondary" href="/">Volver</a>
+    <a class="button" href="/plantillas/{{ template.slug }}/print" target="_blank">Imprimir</a>
+  </div>
+</header>
+
+<section class="panel">
+  <div class="panel-title">
+    <h2>Vista de impresion</h2>
+    <span>{{ template.workbook.name }}</span>
+  </div>
+  <div class="print-preview">
+    {% include generated_template %}
+  </div>
+</section>
+{% endblock %}

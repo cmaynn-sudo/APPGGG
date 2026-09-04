@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Regalias{% endblock %}
+
+{% block content %}
+<header class="page-header">
+  <div>
+    <p class="eyebrow">Datos base</p>
+    <h1>Regalias</h1>
+  </div>
+</header>
+
+<section class="panel">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Mes</th>
+        <th>AU</th>
+        <th>AG</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in regalias %}
+      <tr>
+        <td>{{ row.mes }}</td>
+        <td>{{ row.au if row.au is not none else "" }}</td>
+        <td>{{ row.ag if row.ag is not none else "" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

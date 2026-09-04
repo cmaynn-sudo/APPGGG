@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Documentos{% endblock %}
+
+{% block content %}
+<header class="page-header">
+  <div>
+    <p class="eyebrow">Modulo</p>
+    <h1>Documentos</h1>
+    <p>Entrega, recibos y preliminares.</p>
+  </div>
+</header>
+
+<section class="work-grid">
+  <div class="panel">
+    <div class="panel-title">
+      <h2>Crear entrega</h2>
+      <span>Carpeta logica por año y mes</span>
+    </div>
+    <form class="form-grid" method="post" action="/documentos/crear">
+      <label>Numero de entrega<input name="numero" required></label>
+      <button class="button" type="submit">Guardar entrega</button>
+    </form>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">
+      <h2>Entrega activa</h2>
+      <span>{{ entrega.name if entrega else "Sin entrega" }}</span>
+    </div>
+    {% if entrega %}
+    <p class="muted">{{ entrega.year }} / {{ entrega.month }} / {{ entrega.fecha }}</p>
+    <div class="action-row">
+      <a class="button" href="/print/preliminares/{{ entrega.id }}" target="_blank">Preliminares</a>
+    </div>
+    {% else %}
+    <p class="muted">Crea una entrega para empezar.</p>
+    {% endif %}
+  </div>
+</section>
+
+{% if entrega %}
+<section class="panel section-gap">
+  <div class="panel-title">
+    <h2>Agregar sociedad</h2>
+    <span>Replica el guardado de DOCUMENTOS.py</span>
+  </div>
+  <form class="form-grid form-grid-wide" method="post" action="/documentos/agregar">
+    <input type="hidden" name="entrega_id" value="{{ entrega.id }}">
+    <label>Proveedor
+      <select name="proveedor" required>
+        <option value=""></option>
+        {% for sociedad in sociedades %}
+        <option value="{{ sociedad.sociedad }}">{{ sociedad.sociedad }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Peso inicial<input name="peso_inicial" required inputmode="decimal"></label>
+    <label>Peso post fundicion<input name="peso_post" required inputmode="decimal"></label>
+    <label>Muestras<input name="muestras" inputmode="decimal" value="0"></label>
+    <button class="button" type="submit">Agregar</button>
+  </form>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-title">
+    <h2>Sociedades de la entrega</h2>
+    <span>{{ entrega.items|length }} registro(s)</span>
+  </div>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Proveedor</th>
+        <th>Codigo</th>
+        <th>Peso inicial</th>
+        <th>Peso post</th>
+        <th>Merma</th>
+        <th>% merma</th>
+        <th>Muestras</th>
+        <th>Peso final</th>
+        <th>Documentos</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in entrega.items %}
+      <tr>
+        <td>{{ item.proveedor }}</td>
+        <td>{{ item.codigo }}</td>
+        <td>{{ item.peso_inicial }}</td>
+        <td>{{ item.peso_post }}</td>
+        <td>{{ item.merma }}</td>
+        <td>{{ item.porcentaje_merma }}</td>
+        <td>{{ item.muestras }}</td>
+        <td>{{ item.peso_final }}</td>
+        <td><a href="/print/recibo/{{ entrega.id }}/{{ item.id }}" target="_blank">Recibo</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9">Aun no hay sociedades en esta entrega.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+{% endblock %}

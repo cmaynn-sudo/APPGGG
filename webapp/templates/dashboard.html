@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Panel de recepcion{% endblock %}
+
+{% block content %}
+<header class="page-header">
+  <div>
+    <p class="eyebrow">Sistema documental</p>
+    <h1>Recepcion y liquidacion</h1>
+  </div>
+  <div class="header-metrics">
+    <div><span>{{ sociedades|length }}</span><small>Sociedades</small></div>
+    <div><span>{{ regalias|length }}</span><small>Meses de regalias</small></div>
+    <div><span>{{ entregas|length }}</span><small>Entregas {{ selected_month }}</small></div>
+  </div>
+</header>
+
+<section class="work-grid">
+  <div class="panel panel-wide">
+    <div class="panel-title">
+      <h2>Flujo actual</h2>
+      <span>{{ root_base }}</span>
+    </div>
+    <div class="flow">
+      <a class="flow-step" href="/documentos"><span>1</span><strong>Documentos</strong><small>Entrega, recibos y preliminares</small></a>
+      <a class="flow-step" href="/leyes"><span>2</span><strong>Leyes</strong><small>Registro AU/AG</small></a>
+      <a class="flow-step" href="/boletines"><span>3</span><strong>Boletines</strong><small>Liquidacion y cierre</small></a>
+      <a class="flow-step" href="/certificados"><span>4</span><strong>Certificados</strong><small>Regalias mensuales</small></a>
+      <a class="flow-step" href="/sociedades"><span>5</span><strong>Datos base</strong><small>Sociedades y regalias</small></a>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">
+      <h2>Entregas web</h2>
+      <span>{{ web_entregas|length }} registro(s)</span>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Entrega</th>
+          <th>Fecha</th>
+          <th>Sociedades</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entrega in web_entregas[:8] %}
+        <tr>
+          <td>{{ entrega.name }}</td>
+          <td>{{ entrega.fecha }}</td>
+          <td>{{ entrega.items|length }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="3">No hay entregas web todavia.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">
+      <h2>Plantillas HTML</h2>
+      <span>Referencia visual</span>
+    </div>
+    <div class="template-list">
+      {% for template in templates %}
+      <a href="/plantillas/{{ template.slug }}">
+        <strong>{{ template.title }}</strong>
+        <small>{{ template.purpose }}</small>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}
