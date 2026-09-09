@@ -9,6 +9,11 @@
     <h1>Reporte de leyes</h1>
     <p>Registro AU/AG por sociedad.</p>
   </div>
+  {% if entrega %}
+  <div class="header-actions">
+    <a class="button button-secondary" href="/entregas/web/{{ entrega.id }}">Abrir carpeta</a>
+  </div>
+  {% endif %}
 </header>
 
 <section class="panel">
@@ -47,7 +52,16 @@
         </td>
         <td>
           {% if item.ley_au and item.ley_ag %}
-          <a href="/print/reporte-analisis/{{ entrega.id }}/{{ item.id }}" target="_blank">Reporte</a>
+          <div class="link-list">
+            <a href="/print/reporte-analisis/{{ entrega.id }}/{{ item.id }}" target="_blank">Reporte</a>
+            <a href="/print/reporte-analisis/{{ entrega.id }}/{{ item.id }}?download=1">Descargar</a>
+          </div>
+          <form class="delete-inline-form mini" method="post" action="/leyes/eliminar">
+            <input type="hidden" name="entrega_id" value="{{ entrega.id }}">
+            <input type="hidden" name="item_id" value="{{ item.id }}">
+            <input name="action_password" type="password" placeholder="Autorización" required>
+            <button class="link-button" type="submit">Limpiar</button>
+          </form>
           {% endif %}
         </td>
       </tr>

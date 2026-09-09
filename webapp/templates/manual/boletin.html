@@ -1,0 +1,109 @@
+<section class="print-document letter-liquidation" data-template="boletin">
+  <div class="liquidation-sheet">
+    <header class="liq-header">
+      <h1>REPORTE DE LIQUIDACION</h1>
+      <img src="/static/generated/logo.png" alt="">
+    </header>
+
+    <div class="liq-rule"></div>
+
+    <section class="liq-meta">
+      <div>
+        <strong>C.I GREEN GLOBAL GROUP S.A.S</strong>
+        <dl>
+          <dt>NIT:</dt><dd>901.640.887-1</dd>
+          <dt>DOCUMENTO:</dt><dd>{{ barra }}</dd>
+          <dt>FECHA DE LIQUIDACION:</dt><dd>{{ fecha }}</dd>
+        </dl>
+      </div>
+      <div>
+        <dl>
+          <dt>PROVEEDOR:</dt><dd>{{ sociedad }}</dd>
+          <dt>NIT:</dt><dd>{{ nit }}</dd>
+          <dt>TIPO DE PROVEEDOR:</dt><dd>RECICLADO</dd>
+          <dt>TIPO DE ORO:</dt><dd>RECICLADO</dd>
+        </dl>
+      </div>
+    </section>
+
+    <div class="liq-rule"></div>
+
+    <section class="liq-weights">
+      <div><span>PESO RECIBIDO</span><strong>{{ peso_ini }} G</strong></div>
+      <div><span>PESO FUNDIDO</span><strong>{{ peso_fin }} G</strong></div>
+      <div><span>PERDIDA</span><strong>{{ perdida }}</strong><strong>{{ porcentaje_perdida }}</strong></div>
+    </section>
+
+    <section class="liq-columns">
+      <div class="liq-labels">
+        <h2>VARIABLES</h2>
+        <div class="liq-box labels">
+          <strong>LEY %</strong>
+          <strong>FINO (G)</strong>
+          <strong>PRECIO (COP)</strong>
+          <strong>VALOR METAL (COP)</strong>
+        </div>
+      </div>
+      <div>
+        <h2>ORO</h2>
+        <div class="liq-box values">
+          <strong>{{ ley_au }}</strong>
+          <strong>{{ fino_oro }}</strong>
+          <strong>{{ precio_oro_cop }}</strong>
+          <strong>{{ valor_oro }}</strong>
+        </div>
+      </div>
+      <div>
+        <h2>PLATA</h2>
+        <div class="liq-box values">
+          <strong>{{ ley_ag }}</strong>
+          <strong>{{ fino_plata }}</strong>
+          <strong>{{ precio_plata_cop }}</strong>
+          <strong>{{ valor_plata }}</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="liq-totals">
+      <div class="liq-total-labels">
+        <strong>VALOR TOTAL METALES (COP)</strong>
+        <strong>RETEFUENTE (COP)</strong>
+        <strong>VALOR A PAGAR (COP)</strong>
+      </div>
+      <div class="liq-box total-values">
+        <strong>{{ valor_total_metales }}</strong>
+        <strong>{{ retefuente }}</strong>
+        <strong>{{ valor_a_pagar }}</strong>
+      </div>
+    </section>
+
+    <section class="liq-royalties">
+      <div>
+        <strong>REGALIZAS ADEUDADAS POR EL PROVEEDOR</strong>
+        <div class="royalty-period">{{ periodo_regalias }}</div>
+      </div>
+      <div class="royalty-head"><span>ORO</span><span>PLATA</span></div>
+      <div class="royalty-row"><strong>{{ regalia_au }}</strong><strong>{{ regalia_ag }}</strong></div>
+      <div class="royalty-row boxes"><strong>{{ regalia_oro_total }}</strong><strong>{{ regalia_plata_total }}</strong></div>
+    </section>
+
+    <section class="liq-transfer">
+      <strong>VALOR A TRANSFERIR</strong>
+      <div class="liq-box transfer-value"><strong>{{ valor_transferir }}</strong></div>
+    </section>
+
+    <div class="liq-rule footer-rule"><span>RUCOM: {{ rucom }}</span></div>
+
+    <section class="liq-params">
+      <h2>PARAMETROS</h2>
+      <div class="param-table">
+        <strong>TC</strong>
+        <strong>XAU</strong>
+        <strong>XAG</strong>
+        <span>{{ dolar }}</span><span>1 USD</span>
+        <span>{{ oz_au }}</span><span>1 OZ</span>
+        <span>{{ oz_ag }}</span><span>1 OZ</span>
+      </div>
+    </section>
+  </div>
+</section>

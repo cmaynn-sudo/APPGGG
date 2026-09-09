@@ -40,14 +40,41 @@ def parse_decimal_input(value: str) -> float:
     s = re.sub(r"[^0-9,\.\-]", "", s)
     if s in ("", "-", ",", "."):
         raise ValueError("valor invalido")
+
+    sign = ""
+    if s.startswith("-"):
+        sign = "-"
+        s = s[1:]
+    if "-" in s:
+        raise ValueError("valor invalido")
+
     if "," in s and "." in s:
         if s.rfind(",") > s.rfind("."):
             s = s.replace(".", "").replace(",", ".")
         else:
             s = s.replace(",", "")
     else:
-        s = s.replace(",", ".")
-    return float(s)
+        separator = "," if "," in s else "." if "." in s else ""
+        if separator:
+            whole, fractional = s.rsplit(separator, 1)
+            whole_groups = whole.split(separator)
+            valid_grouping = (
+                all(group.isdigit() for group in whole_groups + [fractional])
+                and 1 <= len(whole_groups[0]) <= 3
+                and all(len(group) == 3 for group in whole_groups[1:])
+            )
+            single_group_thousands = len(whole_groups) == 1 and len(whole_groups[0]) <= 3
+            multi_group_thousands = len(whole_groups) > 1
+            looks_like_thousands = (
+                len(fractional) == 3
+                and valid_grouping
+                and (single_group_thousands or multi_group_thousands)
+            )
+            if looks_like_thousands:
+                s = s.replace(separator, "")
+            else:
+                s = s.replace(separator, ".")
+    return float(sign + s)
 
 
 def mes_actual_es(today: date | None = None) -> str:

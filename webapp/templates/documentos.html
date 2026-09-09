@@ -7,7 +7,7 @@
   <div>
     <p class="eyebrow">Modulo</p>
     <h1>Documentos</h1>
-    <p>Entrega, recibos y preliminares.</p>
+    <p>Entrega, recibos de metales y preliminares.</p>
   </div>
 </header>
 
@@ -19,6 +19,7 @@
     </div>
     <form class="form-grid" method="post" action="/documentos/crear">
       <label>Numero de entrega<input name="numero" required></label>
+      <label>Contraseña de autorización<input name="action_password" type="password" required></label>
       <button class="button" type="submit">Guardar entrega</button>
     </form>
   </div>
@@ -32,12 +33,33 @@
     <p class="muted">{{ entrega.year }} / {{ entrega.month }} / {{ entrega.fecha }}</p>
     <div class="action-row">
       <a class="button" href="/print/preliminares/{{ entrega.id }}" target="_blank">Preliminares</a>
+      <a class="button button-secondary" href="/entregas/web/{{ entrega.id }}">Abrir carpeta</a>
     </div>
     {% else %}
     <p class="muted">Crea una entrega para empezar.</p>
     {% endif %}
   </div>
 </section>
+
+{% if entregas %}
+<section class="panel section-gap">
+  <div class="panel-title">
+    <h2>Cambiar entrega activa</h2>
+    <span>{{ entregas|length }} entrega(s) web</span>
+  </div>
+  <form class="form-grid" method="post" action="/documentos/activar">
+    <input type="hidden" name="next" value="/documentos">
+    <label>Entrega
+      <select name="entrega_id">
+        {% for item in entregas %}
+        <option value="{{ item.id }}" {% if entrega and item.id == entrega.id %}selected{% endif %}>{{ item.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <button class="button button-secondary" type="submit">Usar entrega</button>
+  </form>
+</section>
+{% endif %}
 
 {% if entrega %}
 <section class="panel section-gap">
@@ -58,6 +80,7 @@
     <label>Peso inicial<input name="peso_inicial" required inputmode="decimal"></label>
     <label>Peso post fundicion<input name="peso_post" required inputmode="decimal"></label>
     <label>Muestras<input name="muestras" inputmode="decimal" value="0"></label>
+    <label>Autorización<input name="action_password" type="password" required></label>
     <button class="button" type="submit">Agregar</button>
   </form>
 </section>
@@ -92,13 +115,64 @@
         <td>{{ item.porcentaje_merma }}</td>
         <td>{{ item.muestras }}</td>
         <td>{{ item.peso_final }}</td>
-        <td><a href="/print/recibo/{{ entrega.id }}/{{ item.id }}" target="_blank">Recibo</a></td>
+        <td class="link-list">
+          <a href="/print/recibo/{{ entrega.id }}/{{ item.id }}" target="_blank">Recibo</a>
+          <a href="/print/recibo/{{ entrega.id }}/{{ item.id }}?download=1">Descargar</a>
+          {% if item.ley_au and item.ley_ag %}
+          <a href="/print/reporte-analisis/{{ entrega.id }}/{{ item.id }}" target="_blank">Leyes</a>
+          <a href="/print/boletin/{{ entrega.id }}/{{ item.id }}" target="_blank">Boletin</a>
+          {% endif %}
+        </td>
+      </tr>
+      <tr class="edit-row">
+        <td colspan="9">
+          <form class="item-edit-form" method="post" action="/documentos/editar-item">
+            <input type="hidden" name="next" value="/documentos">
+            <input type="hidden" name="entrega_id" value="{{ entrega.id }}">
+            <input type="hidden" name="item_id" value="{{ item.id }}">
+            <label>Peso inicial<input name="peso_inicial" value="{{ item.peso_inicial }}" inputmode="decimal" required></label>
+            <label>Peso post<input name="peso_post" value="{{ item.peso_post }}" inputmode="decimal" required></label>
+            <label>Muestras<input name="muestras" value="{{ item.muestras }}" inputmode="decimal"></label>
+            <label>Ley estimada<input name="ley_estimada" value="{{ item.ley_estimada }}" inputmode="decimal"></label>
+            <button class="button button-secondary" type="submit">Actualizar</button>
+          </form>
+          <form class="delete-inline-form" method="post" action="/documentos/eliminar-item">
+            <input type="hidden" name="next" value="/documentos">
+            <input type="hidden" name="entrega_id" value="{{ entrega.id }}">
+            <input type="hidden" name="item_id" value="{{ item.id }}">
+            <input name="action_password" type="password" placeholder="Autorización" required>
+            <button class="link-button" type="submit">Eliminar registro</button>
+          </form>
+        </td>
       </tr>
       {% else %}
       <tr><td colspan="9">Aun no hay sociedades en esta entrega.</td></tr>
       {% endfor %}
     </tbody>
   </table>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-title">
+    <h2>Documentos generados</h2>
+    <span>{{ generated_docs|length }} documento(s)</span>
+  </div>
+  <div class="document-list compact">
+    {% for doc in generated_docs %}
+    <article class="document-row">
+      <div>
+        <strong>{{ doc.title }}</strong>
+        <span>{{ doc.category }} · {{ doc.meta }}</span>
+      </div>
+      <div class="row-actions">
+        <a href="{{ doc.view_url }}" target="_blank">Ver</a>
+        <a href="{{ doc.download_url }}">Descargar</a>
+      </div>
+    </article>
+    {% else %}
+    <p class="muted">Agrega sociedades para generar recibos y preliminares.</p>
+    {% endfor %}
+  </div>
 </section>
 {% endif %}
 {% endblock %}

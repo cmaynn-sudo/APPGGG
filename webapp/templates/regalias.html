@@ -7,27 +7,52 @@
   <div>
     <p class="eyebrow">Datos base</p>
     <h1>Regalias</h1>
+    <p>Valores mensuales usados en los boletines y certificados.</p>
   </div>
 </header>
 
 <section class="panel">
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>Mes</th>
-        <th>AU</th>
-        <th>AG</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for row in regalias %}
-      <tr>
-        <td>{{ row.mes }}</td>
-        <td>{{ row.au if row.au is not none else "" }}</td>
-        <td>{{ row.ag if row.ag is not none else "" }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <div class="panel-title">
+    <h2>Crear o actualizar mes</h2>
+    <span>AU y AG aceptan punto o coma decimal</span>
+  </div>
+  <form class="form-grid form-grid-wide" method="post" action="/regalias/guardar">
+    <label>Mes
+      <select name="mes" required>
+        {% for mes in months %}
+        <option value="{{ mes }}">{{ mes }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Regalia AU<input name="au" inputmode="decimal" placeholder="419835,44"></label>
+    <label>Regalia AG<input name="ag" inputmode="decimal" placeholder="6309,32"></label>
+    <button class="button" type="submit">Guardar regalia</button>
+  </form>
+</section>
+
+<section class="panel section-gap">
+  <div class="panel-title">
+    <h2>Tabla mensual</h2>
+    <span>{{ regalias|length }} mes(es)</span>
+  </div>
+  <div class="document-list">
+    {% for row in regalias %}
+    <article class="document-row">
+      <form class="item-edit-form wide" method="post" action="/regalias/guardar">
+        <label>Mes<input name="mes" value="{{ row.mes }}" readonly></label>
+        <label>Regalia AU<input name="au" value="{{ row.au if row.au is not none else '' }}" inputmode="decimal"></label>
+        <label>Regalia AG<input name="ag" value="{{ row.ag if row.ag is not none else '' }}" inputmode="decimal"></label>
+        <button class="button button-secondary" type="submit">Actualizar</button>
+      </form>
+      <form class="delete-inline-form" method="post" action="/regalias/eliminar">
+        <input type="hidden" name="mes" value="{{ row.mes }}">
+        <input name="action_password" type="password" placeholder="Autorización" required>
+        <button class="link-button" type="submit">Eliminar</button>
+      </form>
+    </article>
+    {% else %}
+    <p class="muted">Aun no hay regalías registradas.</p>
+    {% endfor %}
+  </div>
 </section>
 {% endblock %}

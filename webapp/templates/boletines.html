@@ -9,6 +9,11 @@
     <h1>Boletines</h1>
     <p>Liquidacion, cierre de venta y regalías.</p>
   </div>
+  {% if entrega %}
+  <div class="header-actions">
+    <a class="button button-secondary" href="/entregas/web/{{ entrega.id }}">Abrir carpeta</a>
+  </div>
+  {% endif %}
 </header>
 
 {% if entrega %}
@@ -30,6 +35,11 @@
     <label>OZ AU<input name="oz_au" value="{{ entrega['parametros']['oz_au'] }}" inputmode="decimal"></label>
     <label>OZ AG<input name="oz_ag" value="{{ entrega['parametros']['oz_ag'] }}" inputmode="decimal"></label>
     <button class="button" type="submit">Guardar parametros</button>
+  </form>
+  <form class="delete-inline-form section-gap" method="post" action="/boletines/parametros/eliminar">
+    <input type="hidden" name="entrega_id" value="{{ entrega.id }}">
+    <input name="action_password" type="password" placeholder="Autorización" required>
+    <button class="link-button" type="submit">Limpiar parámetros</button>
   </form>
 </section>
 
@@ -57,7 +67,10 @@
         <td>{{ item.fino_oro }}</td>
         <td>{{ item.fino_plata }}</td>
         <td>{{ item.valor_transferir }}</td>
-        <td><a href="/print/boletin/{{ entrega.id }}/{{ item.id }}" target="_blank">Boletin</a></td>
+        <td class="link-list">
+          <a href="/print/boletin/{{ entrega.id }}/{{ item.id }}" target="_blank">Boletin</a>
+          <a href="/print/boletin/{{ entrega.id }}/{{ item.id }}?download=1">Descargar</a>
+        </td>
       </tr>
       {% else %}
       <tr><td colspan="6">Guarda leyes AU/AG para generar boletines.</td></tr>

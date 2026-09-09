@@ -42,6 +42,251 @@
   z-index: 2;
 }
 
+.letter-liquidation {
+  background: #fff;
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.liquidation-sheet {
+  background: #fff;
+  box-sizing: border-box;
+  height: 11in;
+  margin: 0 auto;
+  padding: 1.02in 0.88in 0.7in;
+  width: 8.5in;
+}
+
+.liq-header {
+  align-items: end;
+  display: grid;
+  grid-template-columns: 1fr 1.8in;
+  min-height: 0.82in;
+}
+
+.liq-header h1 {
+  font-size: 20pt;
+  line-height: 1;
+  margin: 0 0 0.06in 0.62in;
+  text-align: left;
+}
+
+.liq-header img {
+  height: 0.86in;
+  justify-self: end;
+  object-fit: contain;
+  width: 1.55in;
+}
+
+.liq-rule {
+  border-top: 1px solid #000;
+  height: 1px;
+  margin: 0.06in 0 0.1in;
+  position: relative;
+}
+
+.liq-meta {
+  display: grid;
+  font-size: 8pt;
+  gap: 0.46in;
+  grid-template-columns: 1fr 1fr;
+  line-height: 1.18;
+}
+
+.liq-meta strong {
+  display: block;
+  margin-bottom: 0.1in;
+}
+
+.liq-meta dl {
+  display: grid;
+  gap: 0.1in 0.18in;
+  grid-template-columns: 1.55in 1fr;
+  margin: 0;
+}
+
+.liq-meta dt {
+  font-weight: 400;
+}
+
+.liq-meta dd {
+  font-weight: 700;
+  margin: 0;
+}
+
+.liq-weights {
+  background: #d9d9d9;
+  display: grid;
+  font-size: 10pt;
+  grid-template-columns: 1fr 1fr 1fr;
+  margin-top: 0.21in;
+  min-height: 0.56in;
+  padding: 0.06in 0.36in 0.08in;
+  text-align: center;
+}
+
+.liq-weights div {
+  display: grid;
+  gap: 0.08in;
+}
+
+.liq-weights strong {
+  font-size: 10pt;
+}
+
+.liq-weights div:last-child {
+  grid-template-columns: 1fr 1fr;
+}
+
+.liq-weights div:last-child span {
+  grid-column: 1 / -1;
+}
+
+.liq-columns {
+  display: grid;
+  gap: 0.48in;
+  grid-template-columns: 3.24in 1.62in 1.46in;
+  margin-top: 0.13in;
+}
+
+.liq-columns h2 {
+  font-size: 11pt;
+  line-height: 1;
+  margin: 0 0 0.15in;
+  text-align: center;
+}
+
+.liq-box {
+  background: #d9d9d9;
+}
+
+.liq-box.labels,
+.liq-box.values {
+  display: grid;
+  font-size: 10pt;
+  gap: 0.14in;
+  min-height: 1.52in;
+  padding: 0.24in 0.04in;
+}
+
+.liq-box.labels {
+  align-content: center;
+  background: #d9d9d9;
+}
+
+.liq-box.values {
+  align-content: center;
+  text-align: center;
+}
+
+.liq-totals {
+  display: grid;
+  gap: 0.48in;
+  grid-template-columns: 3.24in 1.62in;
+  margin-top: 0.22in;
+}
+
+.liq-total-labels,
+.liq-box.total-values {
+  display: grid;
+  font-size: 10pt;
+  gap: 0.17in;
+  padding: 0.05in 0;
+}
+
+.liq-box.total-values {
+  align-content: center;
+  gap: 0.18in;
+  padding: 0.08in 0;
+  text-align: center;
+}
+
+.liq-royalties {
+  align-items: end;
+  display: grid;
+  font-size: 7pt;
+  gap: 0.05in 0.26in;
+  grid-template-columns: 2.75in 1.12in 3.2in;
+  margin-top: 0.08in;
+}
+
+.royalty-period {
+  font-size: 8pt;
+  font-weight: 700;
+  margin-top: 0.2in;
+}
+
+.royalty-head,
+.royalty-row {
+  display: grid;
+  gap: 0.18in;
+  grid-template-columns: 1fr 1fr;
+  text-align: center;
+}
+
+.royalty-row.boxes {
+  grid-column: 3;
+}
+
+.royalty-row.boxes strong {
+  background: #d9d9d9;
+  font-size: 10pt;
+  padding: 0.16in 0.1in;
+}
+
+.liq-transfer {
+  align-items: center;
+  display: grid;
+  font-size: 10pt;
+  grid-template-columns: 3.24in 1.62in;
+  gap: 1.1in;
+  margin-top: 0.28in;
+}
+
+.transfer-value {
+  padding: 0.16in 0.1in;
+  text-align: center;
+}
+
+.footer-rule {
+  margin-top: 0.11in;
+}
+
+.footer-rule span {
+  background: #fff;
+  font-size: 8pt;
+  left: 5.05in;
+  padding: 0 0.04in;
+  position: absolute;
+  top: -0.02in;
+}
+
+.liq-params {
+  margin-top: 0.46in;
+}
+
+.liq-params h2 {
+  font-size: 12pt;
+  margin: 0 0 0.12in;
+}
+
+.param-table {
+  background: #d9d9d9;
+  display: grid;
+  font-size: 10pt;
+  grid-template-columns: 0.7in 0.7in 0.7in 0.7in 0.7in 0.7in;
+  justify-content: center;
+  margin: 0 auto;
+  row-gap: 0.22in;
+  padding: 0.16in 0.1in;
+  text-align: center;
+  width: 4.58in;
+}
+
+.param-table strong {
+  grid-column: span 2;
+}
+
 @media print {
   body {
     background: white;

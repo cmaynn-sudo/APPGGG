@@ -22,10 +22,17 @@ class TemplateSpec:
     purpose: str
     output_name: str
     fields: dict[str, str]
+    body_template: str | None = None
+    page_size: str = "A4"
+    page_margin: str = "10mm"
 
     @property
     def generated_template_name(self) -> str:
         return f"generated/{self.slug}.html"
+
+    @property
+    def render_template_name(self) -> str:
+        return self.body_template or self.generated_template_name
 
 
 def row_fields(prefix: str, cells: list[str]) -> dict[str, str]:
@@ -183,6 +190,9 @@ TEMPLATES: list[TemplateSpec] = [
             "G73": "oz_au",
             "J73": "oz_ag",
         },
+        body_template="manual/boletin.html",
+        page_size="letter",
+        page_margin="0",
     ),
     TemplateSpec(
         slug="certificado-regalias",

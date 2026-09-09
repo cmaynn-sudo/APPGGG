@@ -31,20 +31,25 @@ def fmt_number(value: Any, places: int = 2, blank_zero: bool = False) -> str:
     number = as_float(value)
     if blank_zero and number == 0:
         return ""
-    text = f"{number:,.{places}f}"
-    return text.rstrip("0").rstrip(".") if places > 0 else text
+    text = locale_number(number, places)
+    return text.rstrip("0").rstrip(",") if places > 0 else text
 
 
 def fmt_percent(value: Any, places: int = 2) -> str:
     if value in (None, ""):
         return ""
-    return f"{as_float(value) * 100:.{places}f}%"
+    return f"{locale_number(as_float(value) * 100, places)}%"
 
 
 def fmt_money(value: Any, places: int = 0) -> str:
     if value in (None, ""):
         return ""
-    return f"$ {as_float(value):,.{places}f}"
+    return f"$ {locale_number(as_float(value), places)}"
+
+
+def locale_number(value: float, places: int = 2) -> str:
+    text = f"{value:,.{places}f}"
+    return text.replace(",", "_").replace(".", ",").replace("_", ".")
 
 
 def today_iso(current: date | None = None) -> str:
@@ -148,6 +153,7 @@ def reporte_analisis_context(raw: dict[str, Any], current: date | None = None) -
 
 
 def boletin_context(raw: dict[str, Any], parametros: dict[str, Any], regalias: dict[str, Any], current: date | None = None) -> dict[str, Any]:
+    current = current or date.today()
     peso_ini = as_float(raw.get("peso_ini", raw.get("peso_inicial")))
     peso_fin = as_float(raw.get("peso_fin", raw.get("peso_final", raw.get("peso_post"))))
     ley_au = as_float(raw.get("ley_au"))
@@ -157,6 +163,7 @@ def boletin_context(raw: dict[str, Any], parametros: dict[str, Any], regalias: d
     oz_ag = as_float(parametros.get("oz_ag"))
     regalia_au = as_float(regalias.get("au"))
     regalia_ag = as_float(regalias.get("ag"))
+    mes_regalias = (parametros.get("mes_regalias") or regalias.get("mes") or MESES_ES[current.month]).strip().upper()
 
     perdida = peso_ini - peso_fin
     porcentaje_perdida = perdida / peso_ini if peso_ini else ""
@@ -178,17 +185,18 @@ def boletin_context(raw: dict[str, Any], parametros: dict[str, Any], regalias: d
     data = dict(raw)
     data.update(
         {
-            "fecha": today_iso(current),
-            "periodo_regalias": current_period_label(current),
+            "fecha": today_ddmmyyyy(current),
+            "fecha_iso": today_iso(current),
+            "periodo_regalias": f"{mes_regalias} {current.year}",
             "peso_ini": fmt_number(peso_ini),
             "peso_fin": fmt_number(peso_fin),
             "ley_au": fmt_number(ley_au),
             "ley_ag": fmt_number(ley_ag),
-            "regalia_au": fmt_number(regalia_au),
-            "regalia_ag": fmt_number(regalia_ag),
-            "dolar": fmt_number(dolar),
-            "oz_au": fmt_number(oz_au),
-            "oz_ag": fmt_number(oz_ag),
+            "regalia_au": fmt_money(regalia_au),
+            "regalia_ag": fmt_money(regalia_ag, 2),
+            "dolar": fmt_money(dolar),
+            "oz_au": fmt_money(oz_au),
+            "oz_ag": fmt_money(oz_ag),
             "perdida": fmt_number(perdida),
             "porcentaje_perdida": fmt_percent(porcentaje_perdida) if porcentaje_perdida != "" else "",
             "fino_oro": fmt_number(fino_oro),

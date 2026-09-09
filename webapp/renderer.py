@@ -19,7 +19,7 @@ def render_print_html(slug: str, context: dict | None = None) -> str:
     data = dict(SAMPLE_CONTEXT)
     if context:
         data.update(context)
-    body = env.get_template(spec.generated_template_name).render(**data)
+    body = env.get_template(spec.render_template_name).render(**data)
     print_css = (STATIC_DIR / "print.css").read_text(encoding="utf-8")
     return f"""<!doctype html>
 <html lang="es">
@@ -27,7 +27,7 @@ def render_print_html(slug: str, context: dict | None = None) -> str:
   <meta charset="utf-8">
   <title>{spec.title}</title>
   <style>
-    @page {{ size: A4; margin: 10mm; }}
+    @page {{ size: {spec.page_size}; margin: {spec.page_margin}; }}
     body {{ margin: 0; background: white; }}
     {print_css}
     .doc-sheet {{ box-shadow: none; margin: 0 auto; }}

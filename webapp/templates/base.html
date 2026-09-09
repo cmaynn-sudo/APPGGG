@@ -4,8 +4,13 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Recepcion{% endblock %}</title>
+    <script>
+      const savedTheme = localStorage.getItem("recepcion-theme") || "light";
+      document.documentElement.dataset.theme = savedTheme;
+    </script>
     <link rel="stylesheet" href="/static/app.css">
     <link rel="stylesheet" href="/static/print.css">
+    <script src="/static/app.js" defer></script>
   </head>
   <body>
     <aside class="sidebar">
@@ -19,12 +24,25 @@
       <nav>
         <a href="/">Panel</a>
         <a href="/documentos">Documentos</a>
+        <a href="/entregas">Entregas</a>
         <a href="/leyes">Leyes</a>
         <a href="/boletines">Boletines</a>
         <a href="/certificados">Certificados</a>
         <a href="/sociedades">Sociedades</a>
         <a href="/regalias">Regalias</a>
       </nav>
+      <div class="sidebar-footer">
+        <button class="theme-toggle" type="button" data-theme-toggle>Modo claro</button>
+        {% if user %}
+        <div class="user-pill">
+          <span>{{ user.username }}</span>
+          <strong>{{ user.role }}</strong>
+        </div>
+        <a class="button button-ghost" href="/logout">Salir</a>
+        {% else %}
+        <a class="button" href="/login">Entrar</a>
+        {% endif %}
+      </div>
     </aside>
     <main class="page">
       {% block content %}{% endblock %}

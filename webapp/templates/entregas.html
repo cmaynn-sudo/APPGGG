@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Entregas{% endblock %}
+
+{% block content %}
+<header class="page-header">
+  <div>
+    <p class="eyebrow">Biblioteca</p>
+    <h1>Entregas</h1>
+    <p>Carpetas web e importadas desde CI GREEN GLOBAL.</p>
+  </div>
+  <div class="header-actions">
+    <a class="button" href="/documentos">Nueva entrega</a>
+  </div>
+</header>
+
+<section class="panel">
+  <form class="form-grid" method="get" action="/entregas">
+    <label>Buscar<input name="q" value="{{ query }}" placeholder="Entrega, mes o nombre"></label>
+    <label>Origen
+      <select name="source">
+        <option value="">Todos</option>
+        <option value="web" {% if source == "web" %}selected{% endif %}>Web</option>
+        <option value="imported" {% if source == "imported" %}selected{% endif %}>Importadas</option>
+        <option value="loose" {% if source == "loose" %}selected{% endif %}>Archivos sueltos</option>
+      </select>
+    </label>
+    <button class="button button-secondary" type="submit">Filtrar</button>
+  </form>
+  {% if exported_at %}
+  <p class="muted section-gap">Importacion local actualizada: {{ exported_at }}</p>
+  {% endif %}
+</section>
+
+<section class="folder-grid section-gap">
+  {% for folder in folders %}
+  <a class="folder-card" href="{{ folder.href }}">
+    <span class="folder-tab"></span>
+    <div class="folder-main">
+      <strong>{{ folder.name }}</strong>
+      <small>{{ folder.source_label }} · {{ folder.year }} {{ folder.month }}{% if folder.date %} · {{ folder.date }}{% endif %}</small>
+    </div>
+    <div class="folder-count">
+      <span>{{ folder.document_count }}</span>
+      <small>docs</small>
+    </div>
+  </a>
+  {% else %}
+  <section class="panel panel-wide">
+    <p class="muted">No hay carpetas con esos filtros.</p>
+  </section>
+  {% endfor %}
+</section>
+{% endblock %}

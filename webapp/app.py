@@ -1,18 +1,23 @@
 from __future__ import annotations
 
 import argparse
+import io
 import mimetypes
 import os
+import re
+import zipfile
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 from jinja2 import ChainableUndefined, Environment, FileSystemLoader, select_autoescape
 
+import auth
 import calculations
 import core
 import data_store
+import document_library
 import renderer
 from html_exporter import export_all_templates
 from template_catalog import SAMPLE_CONTEXT, STATIC_DIR, TEMPLATE_BY_SLUG, TEMPLATE_DIR, TEMPLATES
@@ -24,25 +29,15 @@ env = Environment(
     undefined=ChainableUndefined,
 )
 
+MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_MB", "25")) * 1024 * 1024
+
 
 class RecepcionHandler(BaseHTTPRequestHandler):
-    server_version = "RecepcionWeb/0.1"
+    server_version = "RecepcionWeb/0.2"
 
     def do_HEAD(self) -> None:
-        parsed = urlparse(self.path)
-        path = parsed.path.rstrip("/") or "/"
-        html_routes = {"/", "/documentos", "/leyes", "/boletines", "/certificados", "/sociedades", "/regalias"}
-        if path in html_routes or path.startswith("/plantillas/") or path.startswith("/print/"):
-            self.send_response(HTTPStatus.OK)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
-            self.end_headers()
-            return
-        if path.startswith("/api/"):
-            self.send_response(HTTPStatus.OK)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.end_headers()
-            return
-        self.send_error(HTTPStatus.NOT_FOUND, "Ruta no encontrada")
+        self.send_response(HTTPStatus.OK)
+        self.end_headers()
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
@@ -50,6 +45,18 @@ class RecepcionHandler(BaseHTTPRequestHandler):
         query = parse_qs(parsed.query)
 
         try:
+            if path.startswith("/static/"):
+                self.serve_static(path)
+                return
+            if path == "/login":
+                self.render_login(query)
+                return
+            if path == "/logout":
+                self.logout()
+                return
+            if not self.require_login():
+                return
+
             if path == "/":
                 self.render_dashboard()
             elif path == "/documentos":
@@ -64,8 +71,28 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 self.render_sociedades()
             elif path == "/regalias":
                 self.render_regalias()
+            elif path == "/entregas":
+                self.render_entregas(query)
+            elif path.startswith("/entregas/web/") and path.endswith("/descargar"):
+                folder_id = unquote(path.removeprefix("/entregas/web/").removesuffix("/descargar").strip("/"))
+                self.download_folder_zip("web", folder_id)
+            elif path.startswith("/entregas/importadas/") and path.endswith("/descargar"):
+                folder_id = unquote(path.removeprefix("/entregas/importadas/").removesuffix("/descargar").strip("/"))
+                self.download_folder_zip("importadas", folder_id)
+            elif path.startswith("/entregas/web/"):
+                folder_id = unquote(path.removeprefix("/entregas/web/").strip("/"))
+                self.render_entrega_detail("web", folder_id)
+            elif path.startswith("/entregas/importadas/"):
+                folder_id = unquote(path.removeprefix("/entregas/importadas/").strip("/"))
+                self.render_entrega_detail("importadas", folder_id)
+            elif path.startswith("/archivos/importado/"):
+                file_id = unquote(path.removeprefix("/archivos/importado/").strip("/"))
+                self.serve_imported_file(file_id, download=self.wants_download(query))
+            elif path.startswith("/archivos/subido/"):
+                file_id = unquote(path.removeprefix("/archivos/subido/").strip("/"))
+                self.serve_uploaded_file(file_id, download=self.wants_download(query))
             elif path.startswith("/print/"):
-                self.render_business_print(path)
+                self.render_business_print(path, query)
             elif path == "/api/sociedades":
                 self.send_json(data_store.load_store().get("sociedades", []))
             elif path == "/api/regalias":
@@ -74,11 +101,9 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 parts = [part for part in path.split("/") if part]
                 slug = parts[1] if len(parts) > 1 else ""
                 if len(parts) == 3 and parts[2] == "print":
-                    self.render_template_print(slug)
+                    self.render_template_print(slug, query)
                 else:
                     self.render_template_preview(slug)
-            elif path.startswith("/static/"):
-                self.serve_static(path)
             else:
                 self.send_error(HTTPStatus.NOT_FOUND, "Ruta no encontrada")
         except Exception as exc:
@@ -87,44 +112,92 @@ class RecepcionHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
+
         try:
+            if path == "/login":
+                self.handle_login()
+                return
+            if not self.require_login():
+                return
+
+            if path == "/entregas/upload":
+                fields, files = self.read_multipart_form()
+                self.require_action_password(fields.get("action_password"))
+                self.handle_upload(fields, files)
+                return
+
             form = self.read_form()
             if path == "/documentos/crear":
+                self.require_action_password(form.get("action_password"))
                 data_store.create_entrega(form.get("numero", ""))
                 self.redirect("/documentos")
+            elif path == "/documentos/activar":
+                data_store.set_active_entrega(form.get("entrega_id", ""))
+                self.redirect(form.get("next", "/documentos"))
             elif path == "/documentos/agregar":
+                self.require_action_password(form.get("action_password"))
                 data_store.add_entrega_item(form)
                 self.redirect("/documentos")
+            elif path == "/documentos/editar-item":
+                data_store.update_entrega_item(form)
+                self.redirect(form.get("next", "/documentos") or "/documentos")
+            elif path == "/documentos/eliminar-item":
+                self.require_action_password(form.get("action_password"))
+                data_store.delete_entrega_item(form.get("entrega_id", ""), form.get("item_id", ""))
+                self.redirect(form.get("next", "/documentos") or "/documentos")
             elif path == "/leyes/guardar":
                 data_store.update_ley(form)
+                self.redirect("/leyes")
+            elif path == "/leyes/eliminar":
+                self.require_action_password(form.get("action_password"))
+                data_store.clear_ley(form)
                 self.redirect("/leyes")
             elif path == "/boletines/parametros":
                 data_store.update_parametros(form)
                 self.redirect("/boletines")
+            elif path == "/boletines/parametros/eliminar":
+                self.require_action_password(form.get("action_password"))
+                data_store.clear_parametros(form.get("entrega_id", ""))
+                self.redirect("/boletines")
+            elif path == "/regalias/guardar":
+                data_store.upsert_regalia(form)
+                self.redirect("/regalias")
+            elif path == "/regalias/eliminar":
+                self.require_action_password(form.get("action_password"))
+                data_store.delete_regalia(form.get("mes", ""))
+                self.redirect("/regalias")
+            elif path == "/sociedades/guardar":
+                data_store.upsert_sociedad(form)
+                self.redirect("/sociedades")
+            elif path == "/sociedades/eliminar":
+                self.require_action_password(form.get("action_password"))
+                data_store.delete_sociedad(form.get("sociedad", ""))
+                self.redirect("/sociedades")
+            elif path == "/entregas/eliminar":
+                self.require_action_password(form.get("action_password"))
+                self.delete_folder(form)
+            elif path == "/archivos/eliminar":
+                self.require_action_password(form.get("action_password"))
+                self.delete_file(form)
             else:
                 self.send_error(HTTPStatus.NOT_FOUND, "Ruta no encontrada")
         except Exception as exc:
             self.render_error(str(exc))
 
     def render_dashboard(self) -> None:
-        year, month = core.current_period()
-        years = core.list_years()
-        selected_year = year if year in years else (years[-1] if years else year)
-        months = core.list_months_for_year(selected_year)
-        selected_month = month if month in months else (months[-1] if months else month)
+        store = data_store.load_store()
+        folders = document_library.all_folders()
+        imported = [folder for folder in folders if folder.get("source") != "web"]
         self.render(
             "dashboard.html",
             {
                 "templates": TEMPLATES,
-                "sociedades": data_store.load_store().get("sociedades", []),
-                "regalias": data_store.load_store().get("regalias", []),
-                "years": years,
-                "selected_year": selected_year,
-                "selected_month": selected_month,
-                "months": months,
-                "entregas": core.list_entregas(selected_year, selected_month),
-                "root_base": core.ROOT_BASE,
+                "sociedades": store.get("sociedades", []),
+                "regalias": store.get("regalias", []),
+                "document_folders": folders,
+                "imported_folders": imported,
                 "web_entregas": data_store.list_entregas(),
+                "exported_at": document_library.exported_at_label(),
             },
         )
 
@@ -136,6 +209,7 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             "entregas": data_store.list_entregas(),
             "entrega": entrega,
             "preliminares_context": calculations.preliminares_context(entrega.get("items", [])) if entrega else None,
+            "generated_docs": document_library.generated_documents_for_entrega(entrega) if entrega else [],
         }
         self.render("documentos.html", context)
 
@@ -169,7 +243,7 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             {
                 "year": year,
                 "month": month,
-                "years": sorted({e.get("year", "") for e in data_store.list_entregas() if e.get("year")}),
+                "years": sorted({e.get("year", "") for e in data_store.list_entregas() if e.get("year")}) or [year],
                 "months": core.MESES_ORDEN,
                 "groups": data_store.certificado_groups(year, month),
             },
@@ -179,7 +253,39 @@ class RecepcionHandler(BaseHTTPRequestHandler):
         self.render("sociedades.html", {"sociedades": data_store.load_store().get("sociedades", [])})
 
     def render_regalias(self) -> None:
-        self.render("regalias.html", {"regalias": data_store.load_store().get("regalias", [])})
+        self.render("regalias.html", {"regalias": data_store.load_store().get("regalias", []), "months": core.MESES_ORDEN})
+
+    def render_entregas(self, query: dict) -> None:
+        folders = document_library.all_folders()
+        q = query.get("q", [""])[0].strip().lower()
+        source = query.get("source", [""])[0]
+        if q:
+            folders = [folder for folder in folders if q in folder.get("name", "").lower() or q in folder.get("month", "").lower()]
+        if source:
+            folders = [folder for folder in folders if folder.get("source") == source]
+        self.render(
+            "entregas.html",
+            {
+                "folders": folders,
+                "query": q,
+                "source": source,
+                "exported_at": document_library.exported_at_label(),
+            },
+        )
+
+    def render_entrega_detail(self, source: str, folder_id: str) -> None:
+        detail = document_library.folder_detail(source, folder_id)
+        if not detail:
+            self.send_error(HTTPStatus.NOT_FOUND, "Entrega no encontrada")
+            return
+        self.render(
+            "entrega_detail.html",
+            {
+                "folder": detail,
+                "groups": document_library.grouped_documents(detail.get("docs", [])),
+                "next_url": self.path,
+            },
+        )
 
     def render_template_preview(self, slug: str) -> None:
         spec = TEMPLATE_BY_SLUG.get(slug)
@@ -190,28 +296,25 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             "template_preview.html",
             {
                 "template": spec,
-                "generated_template": spec.generated_template_name,
+                "generated_template": spec.render_template_name,
                 **SAMPLE_CONTEXT,
             },
         )
 
-    def render_template_print(self, slug: str) -> None:
+    def render_template_print(self, slug: str, query: dict) -> None:
         if slug not in TEMPLATE_BY_SLUG:
             self.send_error(HTTPStatus.NOT_FOUND, "Plantilla no encontrada")
             return
-        body = renderer.render_print_html(slug).encode("utf-8")
-        self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        filename = f"{TEMPLATE_BY_SLUG[slug].title}.html"
+        self.send_print(slug, {}, download=self.wants_download(query), filename=filename)
 
-    def render_business_print(self, path: str) -> None:
+    def render_business_print(self, path: str, query: dict) -> None:
         parts = [part for part in path.split("/") if part]
         if len(parts) < 3:
             self.send_error(HTTPStatus.NOT_FOUND, "Documento no encontrado")
             return
         doc_type = parts[1]
+        download = self.wants_download(query)
 
         if doc_type == "certificado" and len(parts) >= 5:
             year = parts[2]
@@ -221,7 +324,13 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             if not group:
                 self.send_error(HTTPStatus.NOT_FOUND, "Certificado no encontrado")
                 return
-            self.send_print("certificado-regalias", calculations.certificado_context(group["sociedad"], group["nit"], group["boletines"]))
+            filename = f"CERTIFICADO DE REGALIAS {group['sociedad']} - {month}.html"
+            self.send_print(
+                "certificado-regalias",
+                calculations.certificado_context(group["sociedad"], group["nit"], group["boletines"]),
+                download=download,
+                filename=filename,
+            )
             return
 
         entrega_id = parts[2]
@@ -233,22 +342,26 @@ class RecepcionHandler(BaseHTTPRequestHandler):
         if doc_type == "preliminares":
             context = calculations.preliminares_context(entrega.get("items", []))
             context.update({"entrega": entrega.get("numero", ""), "fecha": entrega.get("fecha", "")})
-            self.send_print("preliminares", context)
+            filename = f"PRELIMINARES - {entrega.get('numero', '')} ({entrega.get('fecha', '')}).html"
+            self.send_print("preliminares", context, download=download, filename=filename)
             return
         if doc_type == "recibo" and len(parts) >= 4:
             item = self.find_item(entrega, parts[3])
-            self.send_print("recibo-metales", calculations.recibo_context(item))
+            filename = f"{item.get('proveedor', 'RECIBO')} ({item.get('codigo', '')}).html"
+            self.send_print("recibo-metales", calculations.recibo_context(item), download=download, filename=filename)
             return
         if doc_type == "reporte-analisis" and len(parts) >= 4:
             item = self.find_item(entrega, parts[3])
-            self.send_print("reporte-analisis", calculations.reporte_analisis_context(item))
+            filename = f"REPORTE LEYES - {item.get('barra', item.get('codigo', ''))}.html"
+            self.send_print("reporte-analisis", calculations.reporte_analisis_context(item), download=download, filename=filename)
             return
         if doc_type == "boletin" and len(parts) >= 4:
             item = self.find_item(entrega, parts[3])
             store = data_store.load_store()
             parametros = entrega.get("parametros", {})
             regalias = data_store.get_regalias_for_month(store, parametros.get("mes_regalias", entrega.get("month", "")))
-            self.send_print("boletin", calculations.boletin_context(item, parametros, regalias))
+            filename = f"BOLETIN - {item.get('barra', item.get('codigo', ''))}.html"
+            self.send_print("boletin", calculations.boletin_context(item, parametros, regalias), download=download, filename=filename)
             return
         self.send_error(HTTPStatus.NOT_FOUND, "Documento no encontrado")
 
@@ -258,19 +371,167 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             raise ValueError("Registro no encontrado en la entrega.")
         return item
 
-    def send_print(self, slug: str, context: dict) -> None:
-        body = renderer.render_print_html(slug, context).encode("utf-8")
-        self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
+    def handle_login(self) -> None:
+        form = self.read_form()
+        user = auth.authenticate(form.get("username", ""), form.get("password", ""))
+        if not user:
+            self.render_login({"next": [form.get("next", "/")]}, "Usuario o contraseña incorrectos.")
+            return
+        token = auth.create_session(user)
+        self.send_response(HTTPStatus.SEE_OTHER)
+        self.send_header("Location", form.get("next", "/") or "/")
+        self.send_header("Set-Cookie", auth.session_cookie_header(token, secure=self.is_secure_request()))
         self.end_headers()
-        self.wfile.write(body)
+
+    def logout(self) -> None:
+        self.send_response(HTTPStatus.SEE_OTHER)
+        self.send_header("Location", "/login")
+        self.send_header("Set-Cookie", auth.clear_cookie_header())
+        self.end_headers()
+
+    def render_login(self, query: dict, error: str = "") -> None:
+        if self.current_user():
+            self.redirect(query.get("next", ["/"])[0] or "/")
+            return
+        self.render("login.html", {"next": query.get("next", ["/"])[0] or "/", "error": error}, public=True)
+
+    def current_user(self) -> dict | None:
+        if not hasattr(self, "_current_user"):
+            self._current_user = auth.user_from_cookie(self.headers.get("Cookie"))
+        return self._current_user
+
+    def require_login(self) -> bool:
+        if self.current_user():
+            return True
+        self.redirect(f"/login?next={quote(self.path or '/', safe='')}")
+        return False
+
+    def require_action_password(self, value: str | None) -> None:
+        if not auth.action_password_matches(value):
+            raise ValueError("Contraseña de autorizacion incorrecta.")
+
+    def is_secure_request(self) -> bool:
+        forwarded = self.headers.get("Forwarded", "")
+        return self.headers.get("X-Forwarded-Proto", "") == "https" or "proto=https" in forwarded.lower()
+
+    def handle_upload(self, fields: dict[str, str], files: list[dict[str, object]]) -> None:
+        source = fields.get("folder_source", "")
+        folder_id = fields.get("folder_id", "")
+        if source not in {"web", "imported"}:
+            raise ValueError("Carpeta invalida.")
+        if source == "web" and not data_store.get_entrega(folder_id):
+            raise ValueError("Entrega web no encontrada.")
+        if source == "imported" and not document_library.imported_delivery(folder_id):
+            raise ValueError("Entrega importada no encontrada.")
+        saved = 0
+        for file_info in files:
+            filename = str(file_info.get("filename") or "")
+            content = file_info.get("content") or b""
+            if filename and isinstance(content, bytes):
+                data_store.save_uploaded_file(source, folder_id, filename, content, str(file_info.get("content_type") or ""))
+                saved += 1
+        if not saved:
+            raise ValueError("Selecciona al menos un archivo.")
+        self.redirect(self.folder_url(source, folder_id))
+
+    def delete_folder(self, form: dict[str, str]) -> None:
+        source = form.get("folder_source", "")
+        folder_id = form.get("folder_id", "")
+        if source == "web":
+            data_store.delete_entrega(folder_id)
+        elif source == "imported":
+            if not document_library.remove_imported_delivery(folder_id):
+                raise ValueError("Entrega importada no encontrada.")
+            data_store.delete_uploaded_files_for("imported", folder_id)
+        else:
+            raise ValueError("Carpeta invalida.")
+        self.redirect("/entregas")
+
+    def delete_file(self, form: dict[str, str]) -> None:
+        kind = form.get("kind", "")
+        file_id = form.get("file_id", "")
+        if kind == "uploaded":
+            data_store.delete_uploaded_file(file_id)
+        elif kind == "imported":
+            if not document_library.remove_imported_file(file_id):
+                raise ValueError("Archivo importado no encontrado.")
+        else:
+            raise ValueError("Archivo invalido.")
+        self.redirect(form.get("next", "/entregas") or "/entregas")
+
+    def serve_imported_file(self, file_id: str, download: bool = False) -> None:
+        file_info, path = document_library.find_imported_file(file_id)
+        if not file_info or not path:
+            self.send_error(HTTPStatus.NOT_FOUND, "Archivo no encontrado")
+            return
+        self.serve_file(path, file_info.get("name", path.name), download)
+
+    def serve_uploaded_file(self, file_id: str, download: bool = False) -> None:
+        file_info, path = data_store.find_uploaded_file(file_id)
+        if not file_info or not path:
+            self.send_error(HTTPStatus.NOT_FOUND, "Archivo no encontrado")
+            return
+        self.serve_file(path, file_info.get("name", path.name), download)
+
+    def serve_file(self, path: Path, filename: str, download: bool = False) -> None:
+        content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        body = path.read_bytes()
+        self.send_bytes(body, content_type, filename=filename, attachment=download)
+
+    def download_folder_zip(self, source: str, folder_id: str) -> None:
+        detail = document_library.folder_detail(source, folder_id)
+        if not detail:
+            self.send_error(HTTPStatus.NOT_FOUND, "Entrega no encontrada")
+            return
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            if source == "web":
+                entrega = detail.get("entrega", {})
+                for name, content in self.generated_zip_entries(entrega):
+                    zf.writestr(name, content)
+            for doc in detail.get("docs", []):
+                if doc.get("kind") == "imported":
+                    _file, path = document_library.find_imported_file(doc.get("id", ""))
+                    if path:
+                        zf.write(path, f"{doc.get('category', 'Archivos')}/{doc.get('name', path.name)}")
+                if doc.get("kind") == "uploaded":
+                    _file, path = data_store.find_uploaded_file(doc.get("id", ""))
+                    if path:
+                        zf.write(path, f"Archivos agregados/{doc.get('name', path.name)}")
+        name = self.safe_download_name(detail.get("name", "entrega")) + ".zip"
+        self.send_bytes(buffer.getvalue(), "application/zip", filename=name, attachment=True)
+
+    def generated_zip_entries(self, entrega: dict) -> list[tuple[str, str]]:
+        entries: list[tuple[str, str]] = []
+        if entrega.get("items"):
+            context = calculations.preliminares_context(entrega.get("items", []))
+            context.update({"entrega": entrega.get("numero", ""), "fecha": entrega.get("fecha", "")})
+            entries.append((f"Preliminares/PRELIMINARES - {entrega.get('numero', '')} ({entrega.get('fecha', '')}).html", renderer.render_print_html("preliminares", context)))
+        store = data_store.load_store()
+        for item in entrega.get("items", []):
+            barra = item.get("barra", item.get("codigo", ""))
+            proveedor = item.get("proveedor", "RECIBO")
+            entries.append((f"Recibos de metales/{proveedor} ({barra}).html", renderer.render_print_html("recibo-metales", calculations.recibo_context(item))))
+            if item.get("ley_au") not in ("", None) and item.get("ley_ag") not in ("", None):
+                entries.append((f"Leyes/REPORTE LEYES - {barra}.html", renderer.render_print_html("reporte-analisis", calculations.reporte_analisis_context(item))))
+                parametros = entrega.get("parametros", {})
+                regalias = data_store.get_regalias_for_month(store, parametros.get("mes_regalias", entrega.get("month", "")))
+                entries.append((f"Boletines/BOLETIN - {barra}.html", renderer.render_print_html("boletin", calculations.boletin_context(item, parametros, regalias))))
+        return entries
+
+    def send_print(self, slug: str, context: dict, download: bool = False, filename: str = "") -> None:
+        body = renderer.render_print_html(slug, context).encode("utf-8")
+        self.send_bytes(body, "text/html; charset=utf-8", filename=filename or f"{slug}.html", attachment=download)
 
     def render_error(self, message: str) -> None:
         self.render("error.html", {"message": message})
 
-    def render(self, template_name: str, context: dict) -> None:
-        body = env.get_template(template_name).render(**context).encode("utf-8")
+    def render(self, template_name: str, context: dict, public: bool = False) -> None:
+        payload = dict(context)
+        payload.setdefault("user", None if public else self.current_user())
+        payload.setdefault("request_path", self.path)
+        payload.setdefault("app_version", self.server_version)
+        body = env.get_template(template_name).render(**payload).encode("utf-8")
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
@@ -279,16 +540,60 @@ class RecepcionHandler(BaseHTTPRequestHandler):
 
     def send_json(self, data) -> None:
         body = core.json_response(data)
+        self.send_bytes(body, "application/json; charset=utf-8")
+
+    def send_bytes(self, body: bytes, content_type: str, filename: str = "", attachment: bool = False) -> None:
         self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        if filename:
+            disposition = "attachment" if attachment else "inline"
+            self.send_header("Content-Disposition", self.content_disposition(disposition, filename))
         self.end_headers()
         self.wfile.write(body)
 
     def read_form(self) -> dict[str, str]:
         length = int(self.headers.get("Content-Length", "0"))
+        if length > MAX_UPLOAD_BYTES:
+            raise ValueError("La solicitud supera el tamaño maximo permitido.")
         body = self.rfile.read(length).decode("utf-8")
         return {key: values[0] for key, values in parse_qs(body, keep_blank_values=True).items()}
+
+    def read_multipart_form(self) -> tuple[dict[str, str], list[dict[str, object]]]:
+        content_type = self.headers.get("Content-Type", "")
+        match = re.search(r"boundary=(?:\"([^\"]+)\"|([^;]+))", content_type)
+        if not match:
+            raise ValueError("Formulario de archivos invalido.")
+        boundary = (match.group(1) or match.group(2)).encode("utf-8")
+        length = int(self.headers.get("Content-Length", "0"))
+        if length > MAX_UPLOAD_BYTES:
+            raise ValueError("El archivo supera el tamaño maximo permitido.")
+        body = self.rfile.read(length)
+        fields: dict[str, str] = {}
+        files: list[dict[str, object]] = []
+        for raw_part in body.split(b"--" + boundary):
+            part = raw_part.strip(b"\r\n")
+            if not part or part == b"--":
+                continue
+            if part.endswith(b"--"):
+                part = part[:-2].rstrip(b"\r\n")
+            header_blob, sep, content = part.partition(b"\r\n\r\n")
+            if not sep:
+                continue
+            headers = header_blob.decode("latin-1", errors="replace").split("\r\n")
+            disposition = next((header for header in headers if header.lower().startswith("content-disposition:")), "")
+            name = self.header_param(disposition, "name")
+            filename = self.header_param(disposition, "filename")
+            part_content_type = ""
+            for header in headers:
+                if header.lower().startswith("content-type:"):
+                    part_content_type = header.split(":", 1)[1].strip()
+                    break
+            if filename:
+                files.append({"field": name, "filename": filename, "content": content, "content_type": part_content_type})
+            elif name:
+                fields[name] = content.decode("utf-8", errors="replace")
+        return fields, files
 
     def redirect(self, location: str) -> None:
         self.send_response(HTTPStatus.SEE_OTHER)
@@ -303,11 +608,29 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             return
         content_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
         body = file_path.read_bytes()
-        self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        self.send_bytes(body, content_type)
+
+    def wants_download(self, query: dict) -> bool:
+        return query.get("download", [""])[0].lower() in {"1", "true", "si", "yes"}
+
+    def folder_url(self, source: str, folder_id: str) -> str:
+        route_source = "web" if source == "web" else "importadas"
+        return f"/entregas/{route_source}/{quote(folder_id)}"
+
+    def safe_download_name(self, name: str) -> str:
+        clean = re.sub(r'[\\/:*?"<>|]+', "-", name).strip()
+        return clean or "archivo"
+
+    def content_disposition(self, disposition: str, filename: str) -> str:
+        fallback = re.sub(r"[^A-Za-z0-9._ -]", "_", filename).strip() or "archivo"
+        return f"{disposition}; filename=\"{fallback}\"; filename*=UTF-8''{quote(filename)}"
+
+    def header_param(self, header: str, name: str) -> str:
+        match = re.search(rf'{re.escape(name)}="([^"]*)"', header)
+        if match:
+            return match.group(1)
+        match = re.search(rf"{re.escape(name)}=([^;]+)", header)
+        return match.group(1).strip() if match else ""
 
     def log_message(self, fmt: str, *args) -> None:
         print(f"{self.address_string()} - {fmt % args}")

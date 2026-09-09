@@ -7,11 +7,12 @@
   <div>
     <p class="eyebrow">Sistema documental</p>
     <h1>Recepcion y liquidacion</h1>
+    <p>Documentos web, ventas importadas y plantillas listas para imprimir.</p>
   </div>
   <div class="header-metrics">
     <div><span>{{ sociedades|length }}</span><small>Sociedades</small></div>
     <div><span>{{ regalias|length }}</span><small>Meses de regalias</small></div>
-    <div><span>{{ entregas|length }}</span><small>Entregas {{ selected_month }}</small></div>
+    <div><span>{{ document_folders|length }}</span><small>Carpetas</small></div>
   </div>
 </header>
 
@@ -23,10 +24,10 @@
     </div>
     <div class="flow">
       <a class="flow-step" href="/documentos"><span>1</span><strong>Documentos</strong><small>Entrega, recibos y preliminares</small></a>
-      <a class="flow-step" href="/leyes"><span>2</span><strong>Leyes</strong><small>Registro AU/AG</small></a>
+      <a class="flow-step" href="/leyes"><span>2</span><strong>Leyes</strong><small>Registro AU/AG y reporte</small></a>
       <a class="flow-step" href="/boletines"><span>3</span><strong>Boletines</strong><small>Liquidacion y cierre</small></a>
-      <a class="flow-step" href="/certificados"><span>4</span><strong>Certificados</strong><small>Regalias mensuales</small></a>
-      <a class="flow-step" href="/sociedades"><span>5</span><strong>Datos base</strong><small>Sociedades y regalias</small></a>
+      <a class="flow-step" href="/entregas"><span>4</span><strong>Entregas</strong><small>Carpetas, PDFs y descargas</small></a>
+      <a class="flow-step" href="/regalias"><span>5</span><strong>Regalias</strong><small>Actualizacion mensual</small></a>
     </div>
   </div>
 
@@ -46,7 +47,7 @@
       <tbody>
         {% for entrega in web_entregas[:8] %}
         <tr>
-          <td>{{ entrega.name }}</td>
+          <td><a href="/entregas/web/{{ entrega.id }}">{{ entrega.name }}</a></td>
           <td>{{ entrega.fecha }}</td>
           <td>{{ entrega["items"]|length }}</td>
         </tr>
@@ -61,15 +62,17 @@
 
   <div class="panel">
     <div class="panel-title">
-      <h2>Plantillas HTML</h2>
-      <span>Referencia visual</span>
+      <h2>Ventas importadas</h2>
+      <span>{{ exported_at }}</span>
     </div>
     <div class="template-list">
-      {% for template in templates %}
-      <a href="/plantillas/{{ template.slug }}">
-        <strong>{{ template.title }}</strong>
-        <small>{{ template.purpose }}</small>
+      {% for folder in imported_folders[:8] %}
+      <a href="{{ folder.href }}">
+        <strong>{{ folder.name }}</strong>
+        <small>{{ folder.year }} {{ folder.month }} · {{ folder.document_count }} archivo(s)</small>
       </a>
+      {% else %}
+      <p class="muted">No hay entregas locales importadas.</p>
       {% endfor %}
     </div>
   </div>

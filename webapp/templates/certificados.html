@@ -48,7 +48,10 @@
         <td>{{ group.sociedad }}</td>
         <td>{{ group.nit }}</td>
         <td>{{ group["boletines"]|length }}</td>
-        <td><a href="/print/certificado/{{ year }}/{{ month }}/{{ group.key }}" target="_blank">Certificado</a></td>
+        <td class="link-list">
+          <a href="/print/certificado/{{ year }}/{{ month }}/{{ group.key }}" target="_blank">Certificado</a>
+          <a href="/print/certificado/{{ year }}/{{ month }}/{{ group.key }}?download=1">Descargar</a>
+        </td>
       </tr>
       {% else %}
       <tr><td colspan="4">No hay boletines para este periodo.</td></tr>

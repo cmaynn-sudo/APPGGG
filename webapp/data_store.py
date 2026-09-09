@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import uuid
 from datetime import date, datetime
 from pathlib import Path
@@ -15,6 +16,7 @@ from template_catalog import WEBAPP_DIR
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", str(WEBAPP_DIR / "data")))
 STORE_PATH = DATA_DIR / "recepcion_store.json"
+UPLOADS_DIR = DATA_DIR / "uploads"
 
 
 def _empty_store() -> dict[str, Any]:
@@ -22,15 +24,40 @@ def _empty_store() -> dict[str, Any]:
         "sociedades": core.read_sociedades(),
         "regalias": core.read_regalias(),
         "entregas": [],
+        "uploaded_files": [],
         "active_entrega_id": "",
     }
+
+
+def normalize_store(store: dict[str, Any]) -> dict[str, Any]:
+    defaults = _empty_store()
+    changed = False
+    for key, value in defaults.items():
+        if key not in store:
+            store[key] = value
+            changed = True
+    for entrega in store.get("entregas", []):
+        if "items" not in entrega:
+            entrega["items"] = []
+            changed = True
+        if "parametros" not in entrega:
+            entrega["parametros"] = {
+                "mes_regalias": entrega.get("month", core.mes_actual_es()),
+                "dolar": "",
+                "oz_au": "",
+                "oz_ag": "",
+            }
+            changed = True
+    if changed:
+        save_store(store)
+    return store
 
 
 def load_store() -> dict[str, Any]:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     if not STORE_PATH.exists():
         save_store(_empty_store())
-    return json.loads(STORE_PATH.read_text(encoding="utf-8"))
+    return normalize_store(json.loads(STORE_PATH.read_text(encoding="utf-8")))
 
 
 def save_store(store: dict[str, Any]) -> None:
@@ -82,6 +109,32 @@ def create_entrega(numero: str) -> dict[str, Any]:
     return entrega
 
 
+def set_active_entrega(entrega_id: str) -> None:
+    store = load_store()
+    if not any(entrega.get("id") == entrega_id for entrega in store.get("entregas", [])):
+        raise ValueError("Entrega no encontrada.")
+    store["active_entrega_id"] = entrega_id
+    save_store(store)
+
+
+def delete_entrega(entrega_id: str) -> None:
+    store = load_store()
+    entregas = store.get("entregas", [])
+    if not any(entrega.get("id") == entrega_id for entrega in entregas):
+        raise ValueError("Entrega no encontrada.")
+    store["entregas"] = [entrega for entrega in entregas if entrega.get("id") != entrega_id]
+    store["uploaded_files"] = [
+        file_info
+        for file_info in store.get("uploaded_files", [])
+        if not (file_info.get("folder_source") == "web" and file_info.get("folder_id") == entrega_id)
+    ]
+    upload_dir = UPLOADS_DIR / "web" / entrega_id
+    if upload_dir.exists():
+        shutil.rmtree(upload_dir)
+    store["active_entrega_id"] = store["entregas"][-1]["id"] if store.get("entregas") else ""
+    save_store(store)
+
+
 def get_entrega(entrega_id: str | None = None) -> dict[str, Any] | None:
     store = load_store()
     target = entrega_id or store.get("active_entrega_id")
@@ -102,6 +155,8 @@ def add_entrega_item(form: dict[str, str]) -> dict[str, Any]:
     entrega = next((e for e in store.get("entregas", []) if e.get("id") == entrega_id), None)
     if not entrega:
         raise ValueError("Primero crea una entrega.")
+    if len(entrega.get("items", [])) >= 8:
+        raise ValueError("La plantilla de preliminares permite maximo 8 sociedades por entrega.")
 
     sociedad = get_sociedad(store, form.get("proveedor", ""))
     if not sociedad:
@@ -135,6 +190,41 @@ def add_entrega_item(form: dict[str, str]) -> dict[str, Any]:
     return item
 
 
+def update_entrega_item(form: dict[str, str]) -> dict[str, Any]:
+    store = load_store()
+    entrega = next((e for e in store.get("entregas", []) if e.get("id") == form.get("entrega_id")), None)
+    if not entrega:
+        raise ValueError("Entrega no encontrada.")
+    idx = next((idx for idx, item in enumerate(entrega.get("items", [])) if item.get("id") == form.get("item_id")), None)
+    if idx is None:
+        raise ValueError("Sociedad no encontrada en la entrega.")
+    item = dict(entrega["items"][idx])
+    for key in ["peso_inicial", "peso_post", "muestras", "ley_estimada", "ley_au", "ley_ag"]:
+        if key in form:
+            item[key] = form.get(key, "")
+    item["peso_final"] = item.get("peso_post", "")
+    recalculated = calculations.preliminar_item(item)
+    recalculated["ley_au"] = item.get("ley_au", "")
+    recalculated["ley_ag"] = item.get("ley_ag", "")
+    recalculated["ley_estimada"] = item.get("ley_estimada", "")
+    recalculated["estado"] = "leyes" if recalculated.get("ley_au") and recalculated.get("ley_ag") else "recibo"
+    entrega["items"][idx] = recalculated
+    save_store(store)
+    return recalculated
+
+
+def delete_entrega_item(entrega_id: str, item_id: str) -> None:
+    store = load_store()
+    entrega = next((e for e in store.get("entregas", []) if e.get("id") == entrega_id), None)
+    if not entrega:
+        raise ValueError("Entrega no encontrada.")
+    original_count = len(entrega.get("items", []))
+    entrega["items"] = [item for item in entrega.get("items", []) if item.get("id") != item_id]
+    if len(entrega["items"]) == original_count:
+        raise ValueError("Sociedad no encontrada en la entrega.")
+    save_store(store)
+
+
 def update_ley(form: dict[str, str]) -> dict[str, Any]:
     store = load_store()
     entrega = next((e for e in store.get("entregas", []) if e.get("id") == form.get("entrega_id")), None)
@@ -146,6 +236,21 @@ def update_ley(form: dict[str, str]) -> dict[str, Any]:
     item["ley_au"] = form.get("ley_au", "")
     item["ley_ag"] = form.get("ley_ag", "")
     item["estado"] = "leyes"
+    save_store(store)
+    return item
+
+
+def clear_ley(form: dict[str, str]) -> dict[str, Any]:
+    store = load_store()
+    entrega = next((e for e in store.get("entregas", []) if e.get("id") == form.get("entrega_id")), None)
+    if not entrega:
+        raise ValueError("Entrega no encontrada.")
+    item = next((i for i in entrega.get("items", []) if i.get("id") == form.get("item_id")), None)
+    if not item:
+        raise ValueError("Sociedad no encontrada en la entrega.")
+    item["ley_au"] = ""
+    item["ley_ag"] = ""
+    item["estado"] = "recibo"
     save_store(store)
     return item
 
@@ -163,6 +268,197 @@ def update_parametros(form: dict[str, str]) -> dict[str, Any]:
     }
     save_store(store)
     return entrega["parametros"]
+
+
+def clear_parametros(entrega_id: str) -> dict[str, Any]:
+    store = load_store()
+    entrega = next((e for e in store.get("entregas", []) if e.get("id") == entrega_id), None)
+    if not entrega:
+        raise ValueError("Entrega no encontrada.")
+    entrega["parametros"] = {
+        "mes_regalias": entrega.get("month", core.mes_actual_es()),
+        "dolar": "",
+        "oz_au": "",
+        "oz_ag": "",
+    }
+    save_store(store)
+    return entrega["parametros"]
+
+
+def upsert_regalia(form: dict[str, str]) -> dict[str, Any]:
+    mes = form.get("mes", "").strip().upper()
+    if not mes:
+        raise ValueError("Selecciona un mes.")
+    if mes not in core.MESES_ORDEN:
+        raise ValueError("Mes invalido.")
+
+    def parse_optional(name: str) -> float | None:
+        raw = form.get(name, "").strip()
+        return core.parse_decimal_input(raw) if raw else None
+
+    row = {
+        "mes": mes,
+        "au": parse_optional("au"),
+        "ag": parse_optional("ag"),
+    }
+    store = load_store()
+    regalias = store.setdefault("regalias", [])
+    for idx, existing in enumerate(regalias):
+        if existing.get("mes", "").strip().upper() == mes:
+            regalias[idx] = row
+            break
+    else:
+        regalias.append(row)
+    store["regalias"] = sorted(regalias, key=lambda item: core.MESES_ORDEN.index(item.get("mes", "DICIEMBRE")) if item.get("mes") in core.MESES_ORDEN else 99)
+    save_store(store)
+    return row
+
+
+def delete_regalia(mes: str) -> None:
+    target = mes.strip().upper()
+    store = load_store()
+    regalias = store.get("regalias", [])
+    if not any(row.get("mes", "").strip().upper() == target for row in regalias):
+        raise ValueError("Regalia no encontrada.")
+    store["regalias"] = [row for row in regalias if row.get("mes", "").strip().upper() != target]
+    save_store(store)
+
+
+def upsert_sociedad(form: dict[str, str]) -> dict[str, Any]:
+    original = form.get("original_sociedad", "").strip()
+    sociedad = form.get("sociedad", "").strip().upper()
+    prefijo = form.get("prefijo", "").strip().upper()
+    if not sociedad:
+        raise ValueError("Ingresa el nombre de la sociedad.")
+    if not prefijo:
+        raise ValueError("Ingresa el prefijo.")
+    consecutivo_raw = form.get("consecutivo", "0").strip() or "0"
+    try:
+        consecutivo = int(core.parse_decimal_input(consecutivo_raw))
+    except ValueError as exc:
+        raise ValueError("El consecutivo debe ser numerico.") from exc
+    row = {
+        "sociedad": sociedad,
+        "nit": form.get("nit", "").strip(),
+        "rucom": form.get("rucom", "").strip(),
+        "municipio": form.get("municipio", "").strip().upper(),
+        "prefijo": prefijo,
+        "consecutivo": consecutivo,
+    }
+    store = load_store()
+    sociedades = store.setdefault("sociedades", [])
+    if original:
+        for idx, existing in enumerate(sociedades):
+            if existing.get("sociedad", "").strip() == original:
+                sociedades[idx] = row
+                break
+        else:
+            raise ValueError("Sociedad no encontrada.")
+    else:
+        if any(existing.get("sociedad", "").strip().upper() == sociedad for existing in sociedades):
+            raise ValueError("Ya existe una sociedad con ese nombre.")
+        sociedades.append(row)
+    store["sociedades"] = sorted(sociedades, key=lambda item: item.get("sociedad", ""))
+    save_store(store)
+    return row
+
+
+def delete_sociedad(nombre: str) -> None:
+    target = nombre.strip()
+    store = load_store()
+    sociedades = store.get("sociedades", [])
+    if not any(row.get("sociedad", "").strip() == target for row in sociedades):
+        raise ValueError("Sociedad no encontrada.")
+    store["sociedades"] = [row for row in sociedades if row.get("sociedad", "").strip() != target]
+    save_store(store)
+
+
+def safe_filename(name: str) -> str:
+    clean = Path(name or "archivo").name.strip()
+    clean = re.sub(r'[\\/:*?"<>|]', "-", clean)
+    clean = re.sub(r"\s+", " ", clean)
+    return clean or f"archivo-{uuid.uuid4().hex[:8]}"
+
+
+def uploaded_files_for(folder_source: str, folder_id: str) -> list[dict[str, Any]]:
+    store = load_store()
+    return [
+        file_info
+        for file_info in store.get("uploaded_files", [])
+        if file_info.get("folder_source") == folder_source and file_info.get("folder_id") == folder_id
+    ]
+
+
+def save_uploaded_file(folder_source: str, folder_id: str, filename: str, content: bytes, content_type: str = "") -> dict[str, Any]:
+    if not content:
+        raise ValueError("El archivo esta vacio.")
+    clean_name = safe_filename(filename)
+    file_id = uuid.uuid4().hex
+    folder_dir = UPLOADS_DIR / folder_source / folder_id
+    folder_dir.mkdir(parents=True, exist_ok=True)
+    target = folder_dir / f"{file_id}-{clean_name}"
+    target.write_bytes(content)
+    file_info = {
+        "id": file_id,
+        "folder_source": folder_source,
+        "folder_id": folder_id,
+        "name": clean_name,
+        "relative_path": str(target.relative_to(DATA_DIR)),
+        "size": len(content),
+        "content_type": content_type,
+        "uploaded_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    store = load_store()
+    store.setdefault("uploaded_files", []).append(file_info)
+    save_store(store)
+    return file_info
+
+
+def find_uploaded_file(file_id: str) -> tuple[dict[str, Any], Path] | tuple[None, None]:
+    store = load_store()
+    for file_info in store.get("uploaded_files", []):
+        if file_info.get("id") != file_id:
+            continue
+        rel = str(file_info.get("relative_path", "")).lstrip("/\\")
+        path = (DATA_DIR / rel).resolve()
+        if not str(path).startswith(str(DATA_DIR.resolve())) or not path.exists() or not path.is_file():
+            return None, None
+        return file_info, path
+    return None, None
+
+
+def delete_uploaded_file(file_id: str) -> dict[str, Any]:
+    store = load_store()
+    target = None
+    remaining = []
+    for file_info in store.get("uploaded_files", []):
+        if file_info.get("id") == file_id:
+            target = file_info
+        else:
+            remaining.append(file_info)
+    if not target:
+        raise ValueError("Archivo no encontrado.")
+    _file, path = find_uploaded_file(file_id)
+    if path:
+        path.unlink(missing_ok=True)
+    store["uploaded_files"] = remaining
+    save_store(store)
+    return target
+
+
+def delete_uploaded_files_for(folder_source: str, folder_id: str) -> None:
+    store = load_store()
+    remaining = []
+    for file_info in store.get("uploaded_files", []):
+        if file_info.get("folder_source") == folder_source and file_info.get("folder_id") == folder_id:
+            rel = str(file_info.get("relative_path", "")).lstrip("/\\")
+            path = (DATA_DIR / rel).resolve()
+            if str(path).startswith(str(DATA_DIR.resolve())):
+                path.unlink(missing_ok=True)
+        else:
+            remaining.append(file_info)
+    store["uploaded_files"] = remaining
+    save_store(store)
 
 
 def boletines_for_entrega(entrega: dict[str, Any]) -> list[dict[str, Any]]:

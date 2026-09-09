@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}{{ folder.name }}{% endblock %}
+
+{% block content %}
+<header class="page-header">
+  <div>
+    <p class="eyebrow">Carpeta {{ folder.source_label }}</p>
+    <h1>{{ folder.name }}</h1>
+    <p>{{ folder.year }} {{ folder.month }}{% if folder.date %} · {{ folder.date }}{% endif %}</p>
+  </div>
+  <div class="header-actions">
+    <a class="button button-secondary" href="/entregas">Carpetas</a>
+    <a class="button" href="{{ folder.zip_url }}">Descargar ZIP</a>
+  </div>
+</header>
+
+<section class="work-grid">
+  <div class="panel">
+    <div class="panel-title">
+      <h2>Agregar archivo</h2>
+      <span>Queda asociado a esta carpeta</span>
+    </div>
+    <form class="form-grid" method="post" action="/entregas/upload" enctype="multipart/form-data">
+      <input type="hidden" name="folder_source" value="{{ folder.source }}">
+      <input type="hidden" name="folder_id" value="{{ folder.id }}">
+      <label>Archivo<input name="archivo" type="file" required></label>
+      <label>Autorización<input name="action_password" type="password" required></label>
+      <button class="button" type="submit">Subir archivo</button>
+    </form>
+  </div>
+
+  {% if folder.can_delete_folder %}
+  <div class="panel danger-panel">
+    <div class="panel-title">
+      <h2>Eliminar carpeta</h2>
+      <span>Requiere autorización</span>
+    </div>
+    <form class="form-grid" method="post" action="/entregas/eliminar">
+      <input type="hidden" name="folder_source" value="{{ folder.source }}">
+      <input type="hidden" name="folder_id" value="{{ folder.id }}">
+      <label>Contraseña<input name="action_password" type="password" required></label>
+      <button class="button button-danger" type="submit">Eliminar</button>
+    </form>
+  </div>
+  {% endif %}
+</section>
+
+{% for group in groups %}
+<section class="panel section-gap">
+  <div class="panel-title">
+    <h2>{{ group.category }}</h2>
+    <span>{{ group.docs|length }} archivo(s)</span>
+  </div>
+  <div class="document-list">
+    {% for doc in group.docs %}
+    <article class="document-row">
+      <div>
+        <strong>{{ doc.title or doc.name }}</strong>
+        <span>{{ doc.name }}{% if doc.size_label %} · {{ doc.size_label }}{% endif %}{% if doc.meta %} · {{ doc.meta }}{% endif %}</span>
+      </div>
+      <div class="row-actions">
+        <a href="{{ doc.view_url }}" target="_blank">Ver</a>
+        <a href="{{ doc.download_url }}">Descargar</a>
+        {% if doc.deletable %}
+        <form class="delete-inline-form mini" method="post" action="/archivos/eliminar">
+          <input type="hidden" name="kind" value="{{ doc.kind }}">
+          <input type="hidden" name="file_id" value="{{ doc.id }}">
+          <input type="hidden" name="next" value="{{ next_url }}">
+          <input name="action_password" type="password" placeholder="Autorización" required>
+          <button class="link-button" type="submit">Eliminar</button>
+        </form>
+        {% endif %}
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% else %}
+<section class="panel">
+  <p class="muted">Esta carpeta aun no tiene documentos.</p>
+</section>
+{% endfor %}
+{% endblock %}
