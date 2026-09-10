@@ -49,6 +49,10 @@ body {
   grid-template-columns: 292px minmax(0, 1fr);
 }
 
+body.public-body {
+  display: block;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -150,6 +154,11 @@ nav a:hover,
 .page {
   min-width: 0;
   padding: 28px;
+}
+
+.public-page {
+  min-height: 100vh;
+  padding: 24px;
 }
 
 .page-header {
@@ -614,7 +623,7 @@ label {
 .login-shell {
   align-items: center;
   display: grid;
-  min-height: calc(100vh - 56px);
+  min-height: calc(100vh - 48px);
 }
 
 .login-panel {
@@ -634,6 +643,16 @@ label {
   max-height: 96px;
   object-fit: contain;
   width: 140px;
+}
+
+.upload-status {
+  font-size: 13px;
+  margin: 10px 0 0;
+}
+
+.button:disabled {
+  cursor: wait;
+  opacity: 0.68;
 }
 
 .form-error {

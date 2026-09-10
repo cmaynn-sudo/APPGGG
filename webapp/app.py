@@ -18,6 +18,7 @@ import calculations
 import core
 import data_store
 import document_library
+import persistence
 import renderer
 from html_exporter import export_all_templates
 from template_catalog import SAMPLE_CONTEXT, STATIC_DIR, TEMPLATE_BY_SLUG, TEMPLATE_DIR, TEMPLATES
@@ -76,12 +77,18 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             elif path.startswith("/entregas/web/") and path.endswith("/descargar"):
                 folder_id = unquote(path.removeprefix("/entregas/web/").removesuffix("/descargar").strip("/"))
                 self.download_folder_zip("web", folder_id)
+            elif path.startswith("/entregas/local/") and path.endswith("/descargar"):
+                folder_id = unquote(path.removeprefix("/entregas/local/").removesuffix("/descargar").strip("/"))
+                self.download_folder_zip("local", folder_id)
             elif path.startswith("/entregas/importadas/") and path.endswith("/descargar"):
                 folder_id = unquote(path.removeprefix("/entregas/importadas/").removesuffix("/descargar").strip("/"))
                 self.download_folder_zip("importadas", folder_id)
             elif path.startswith("/entregas/web/"):
                 folder_id = unquote(path.removeprefix("/entregas/web/").strip("/"))
                 self.render_entrega_detail("web", folder_id)
+            elif path.startswith("/entregas/local/"):
+                folder_id = unquote(path.removeprefix("/entregas/local/").strip("/"))
+                self.render_entrega_detail("local", folder_id)
             elif path.startswith("/entregas/importadas/"):
                 folder_id = unquote(path.removeprefix("/entregas/importadas/").strip("/"))
                 self.render_entrega_detail("importadas", folder_id)
@@ -125,10 +132,15 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 self.require_action_password(fields.get("action_password"))
                 self.handle_upload(fields, files)
                 return
+            if path == "/entregas/importar-carpeta":
+                fields, files = self.read_multipart_form()
+                self.require_action_password(fields.get("action_password"))
+                folder = data_store.create_local_folder_from_upload(fields.get("folder_name", ""), files)
+                self.redirect(self.folder_url("local", folder["id"]))
+                return
 
             form = self.read_form()
             if path == "/documentos/crear":
-                self.require_action_password(form.get("action_password"))
                 data_store.create_entrega(form.get("numero", ""))
                 self.redirect("/documentos")
             elif path == "/documentos/activar":
@@ -198,6 +210,7 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 "imported_folders": imported,
                 "web_entregas": data_store.list_entregas(),
                 "exported_at": document_library.exported_at_label(),
+                "backup_status": persistence.runtime_status(data_store.DATA_DIR),
             },
         )
 
@@ -378,8 +391,11 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             self.render_login({"next": [form.get("next", "/")]}, "Usuario o contraseña incorrectos.")
             return
         token = auth.create_session(user)
+        next_url = form.get("next", "/documentos") or "/documentos"
+        if next_url == "/":
+            next_url = "/documentos"
         self.send_response(HTTPStatus.SEE_OTHER)
-        self.send_header("Location", form.get("next", "/") or "/")
+        self.send_header("Location", next_url)
         self.send_header("Set-Cookie", auth.session_cookie_header(token, secure=self.is_secure_request()))
         self.end_headers()
 
@@ -391,9 +407,11 @@ class RecepcionHandler(BaseHTTPRequestHandler):
 
     def render_login(self, query: dict, error: str = "") -> None:
         if self.current_user():
-            self.redirect(query.get("next", ["/"])[0] or "/")
+            next_url = query.get("next", ["/documentos"])[0] or "/documentos"
+            self.redirect("/documentos" if next_url == "/" else next_url)
             return
-        self.render("login.html", {"next": query.get("next", ["/"])[0] or "/", "error": error}, public=True)
+        next_url = query.get("next", ["/documentos"])[0] or "/documentos"
+        self.render("login.html", {"next": "/documentos" if next_url == "/" else next_url, "error": error}, public=True)
 
     def current_user(self) -> dict | None:
         if not hasattr(self, "_current_user"):
@@ -403,7 +421,8 @@ class RecepcionHandler(BaseHTTPRequestHandler):
     def require_login(self) -> bool:
         if self.current_user():
             return True
-        self.redirect(f"/login?next={quote(self.path or '/', safe='')}")
+        next_url = "/documentos" if (self.path or "/") == "/" else self.path or "/documentos"
+        self.redirect(f"/login?next={quote(next_url, safe='')}")
         return False
 
     def require_action_password(self, value: str | None) -> None:
@@ -417,12 +436,14 @@ class RecepcionHandler(BaseHTTPRequestHandler):
     def handle_upload(self, fields: dict[str, str], files: list[dict[str, object]]) -> None:
         source = fields.get("folder_source", "")
         folder_id = fields.get("folder_id", "")
-        if source not in {"web", "imported"}:
+        if source not in {"web", "imported", "local"}:
             raise ValueError("Carpeta invalida.")
         if source == "web" and not data_store.get_entrega(folder_id):
             raise ValueError("Entrega web no encontrada.")
         if source == "imported" and not document_library.imported_delivery(folder_id):
             raise ValueError("Entrega importada no encontrada.")
+        if source == "local" and not data_store.get_local_folder(folder_id):
+            raise ValueError("Carpeta local no encontrada.")
         saved = 0
         for file_info in files:
             filename = str(file_info.get("filename") or "")
@@ -439,6 +460,8 @@ class RecepcionHandler(BaseHTTPRequestHandler):
         folder_id = form.get("folder_id", "")
         if source == "web":
             data_store.delete_entrega(folder_id)
+        elif source == "local":
+            data_store.delete_local_folder(folder_id)
         elif source == "imported":
             if not document_library.remove_imported_delivery(folder_id):
                 raise ValueError("Entrega importada no encontrada.")
@@ -497,7 +520,8 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 if doc.get("kind") == "uploaded":
                     _file, path = data_store.find_uploaded_file(doc.get("id", ""))
                     if path:
-                        zf.write(path, f"Archivos agregados/{doc.get('name', path.name)}")
+                        archive_path = doc.get("archive_path") or f"{doc.get('category', 'Archivos')}/{doc.get('name', path.name)}"
+                        zf.write(path, archive_path)
         name = self.safe_download_name(detail.get("name", "entrega")) + ".zip"
         self.send_bytes(buffer.getvalue(), "application/zip", filename=name, attachment=True)
 
@@ -523,11 +547,24 @@ class RecepcionHandler(BaseHTTPRequestHandler):
         body = renderer.render_print_html(slug, context).encode("utf-8")
         self.send_bytes(body, "text/html; charset=utf-8", filename=filename or f"{slug}.html", attachment=download)
 
-    def render_error(self, message: str) -> None:
-        self.render("error.html", {"message": message})
+    def render_error(self, message: str, status: HTTPStatus = HTTPStatus.BAD_REQUEST) -> None:
+        payload = {
+            "message": message,
+            "public": False,
+            "user": self.current_user(),
+            "request_path": self.path,
+            "app_version": self.server_version,
+        }
+        body = env.get_template("error.html").render(**payload).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def render(self, template_name: str, context: dict, public: bool = False) -> None:
         payload = dict(context)
+        payload.setdefault("public", public)
         payload.setdefault("user", None if public else self.current_user())
         payload.setdefault("request_path", self.path)
         payload.setdefault("app_version", self.server_version)
@@ -614,7 +651,12 @@ class RecepcionHandler(BaseHTTPRequestHandler):
         return query.get("download", [""])[0].lower() in {"1", "true", "si", "yes"}
 
     def folder_url(self, source: str, folder_id: str) -> str:
-        route_source = "web" if source == "web" else "importadas"
+        if source == "web":
+            route_source = "web"
+        elif source == "local":
+            route_source = "local"
+        else:
+            route_source = "importadas"
         return f"/entregas/{route_source}/{quote(folder_id)}"
 
     def safe_download_name(self, name: str) -> str:

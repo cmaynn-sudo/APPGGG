@@ -33,6 +33,24 @@
 
   <div class="panel">
     <div class="panel-title">
+      <h2>Respaldo</h2>
+      <span>{{ "Activo" if backup_status.enabled else "Pendiente" }}</span>
+    </div>
+    {% if backup_status.enabled %}
+    <p class="muted">GitHub · {{ backup_status.repo }} · {{ backup_status.branch }}</p>
+    {% if backup_status.last_backup_at %}
+    <p class="muted">Ultimo guardado: {{ backup_status.last_backup_at }}</p>
+    {% endif %}
+    {% else %}
+    <p class="muted">Configura GITHUB_BACKUP_TOKEN en Render para conservar cambios despues de reinicios y deploys.</p>
+    {% endif %}
+    {% if backup_status.last_backup_error or backup_status.last_restore_error %}
+    <p class="form-error">{{ backup_status.last_backup_error or backup_status.last_restore_error }}</p>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">
       <h2>Entregas web</h2>
       <span>{{ web_entregas|length }} registro(s)</span>
     </div>

@@ -8,3 +8,11 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.13.5
+      - key: GITHUB_BACKUP_REPO
+        value: cmaynn-sudo/APPGGG
+      - key: GITHUB_BACKUP_BRANCH
+        value: app-data
+      - key: GITHUB_BACKUP_PATH
+        value: recepcion-state/state.zip
+      - key: GITHUB_BACKUP_TOKEN
+        sync: false

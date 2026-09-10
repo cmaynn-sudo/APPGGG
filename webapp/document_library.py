@@ -251,14 +251,38 @@ def uploaded_documents_for_folder(source: str, folder_id: str) -> list[dict[str,
         item = dict(file_info)
         item["kind"] = "uploaded"
         item["category"] = item.get("category") or "Archivos agregados"
-        item["title"] = item.get("name", "Archivo")
-        item["meta"] = "Subido al aplicativo"
+        display_path = item.get("display_path") or item.get("name", "Archivo")
+        item["title"] = display_path
+        item["meta"] = "Subido al aplicativo" if source != "local" else "Carpeta local"
         item["size_label"] = file_size_label(item.get("size"))
         item["view_url"] = f"/archivos/subido/{quote(item['id'])}"
         item["download_url"] = f"/archivos/subido/{quote(item['id'])}?download=1"
+        item["archive_path"] = display_path
         item["deletable"] = True
         rows.append(item)
     return rows
+
+
+def local_uploaded_folders() -> list[dict[str, Any]]:
+    folders = []
+    for folder in data_store.list_local_folders():
+        uploads = uploaded_documents_for_folder("local", folder.get("id", ""))
+        folders.append(
+            {
+                "id": folder.get("id", ""),
+                "source": "local",
+                "source_label": "Carpeta local",
+                "name": folder.get("name", ""),
+                "year": folder.get("year", ""),
+                "month": folder.get("month", ""),
+                "date": folder.get("date", ""),
+                "document_count": len(uploads),
+                "file_count": len(uploads),
+                "href": f"/entregas/local/{quote(folder.get('id', ''))}",
+                "folder": folder,
+            }
+        )
+    return folders
 
 
 def web_folders() -> list[dict[str, Any]]:
@@ -286,7 +310,7 @@ def web_folders() -> list[dict[str, Any]]:
 
 
 def all_folders() -> list[dict[str, Any]]:
-    rows = web_folders() + imported_deliveries()
+    rows = web_folders() + local_uploaded_folders() + imported_deliveries()
     loose = loose_folder()
     if loose:
         rows.append(loose)
@@ -311,6 +335,23 @@ def folder_detail(source: str, folder_id: str) -> dict[str, Any] | None:
             "entrega": entrega,
             "can_delete_folder": True,
             "zip_url": f"/entregas/web/{quote(folder_id)}/descargar",
+        }
+    if source == "local":
+        folder = data_store.get_local_folder(folder_id)
+        if not folder:
+            return None
+        docs = uploaded_documents_for_folder("local", folder_id)
+        return {
+            "id": folder_id,
+            "source": "local",
+            "source_label": "Carpeta local",
+            "name": folder.get("name", ""),
+            "year": folder.get("year", ""),
+            "month": folder.get("month", ""),
+            "date": folder.get("date", ""),
+            "docs": docs,
+            "can_delete_folder": True,
+            "zip_url": f"/entregas/local/{quote(folder_id)}/descargar",
         }
     if source == "importadas":
         folder = imported_delivery(folder_id)

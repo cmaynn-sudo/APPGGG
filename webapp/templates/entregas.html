@@ -14,21 +14,47 @@
   </div>
 </header>
 
-<section class="panel">
+<section class="work-grid">
+  <div class="panel">
+    <div class="panel-title">
+      <h2>Subir carpeta local</h2>
+      <span>PDFs, Excel y soportes de otra entrega</span>
+    </div>
+    <form class="form-grid" method="post" action="/entregas/importar-carpeta" enctype="multipart/form-data" data-folder-upload-form>
+      <label>Nombre de carpeta<input name="folder_name" placeholder="ENTREGA °6 - (2026-04-09)"></label>
+      <label>Carpeta<input name="archivos" type="file" multiple webkitdirectory directory required data-folder-input></label>
+      <label>Autorización<input name="action_password" type="password" required></label>
+      <button class="button" type="submit">Subir carpeta</button>
+    </form>
+    <p class="upload-status muted" data-upload-status></p>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">
+      <h2>Filtrar carpetas</h2>
+      <span>{{ folders|length }} resultado(s)</span>
+    </div>
   <form class="form-grid" method="get" action="/entregas">
     <label>Buscar<input name="q" value="{{ query }}" placeholder="Entrega, mes o nombre"></label>
     <label>Origen
       <select name="source">
         <option value="">Todos</option>
         <option value="web" {% if source == "web" %}selected{% endif %}>Web</option>
+        <option value="local" {% if source == "local" %}selected{% endif %}>Carpetas subidas</option>
         <option value="imported" {% if source == "imported" %}selected{% endif %}>Importadas</option>
         <option value="loose" {% if source == "loose" %}selected{% endif %}>Archivos sueltos</option>
       </select>
     </label>
     <button class="button button-secondary" type="submit">Filtrar</button>
   </form>
+  </div>
+</section>
+
+<section class="panel section-gap">
   {% if exported_at %}
-  <p class="muted section-gap">Importacion local actualizada: {{ exported_at }}</p>
+  <p class="muted">Importacion local actualizada: {{ exported_at }}</p>
+  {% else %}
+  <p class="muted">Las carpetas subidas desde esta pantalla quedan disponibles en esta biblioteca.</p>
   {% endif %}
 </section>
 

@@ -11,6 +11,7 @@ from typing import Any
 
 import calculations
 import core
+import persistence
 from template_catalog import WEBAPP_DIR
 
 
@@ -24,12 +25,13 @@ def _empty_store() -> dict[str, Any]:
         "sociedades": core.read_sociedades(),
         "regalias": core.read_regalias(),
         "entregas": [],
+        "local_folders": [],
         "uploaded_files": [],
         "active_entrega_id": "",
     }
 
 
-def normalize_store(store: dict[str, Any]) -> dict[str, Any]:
+def normalize_store(store: dict[str, Any], sync_backup: bool = True) -> dict[str, Any]:
     defaults = _empty_store()
     changed = False
     for key, value in defaults.items():
@@ -48,23 +50,33 @@ def normalize_store(store: dict[str, Any]) -> dict[str, Any]:
                 "oz_ag": "",
             }
             changed = True
+    for folder in store.get("local_folders", []):
+        if "files" not in folder:
+            folder["files"] = []
+            changed = True
     if changed:
-        save_store(store)
+        save_store(store, sync_backup=sync_backup)
     return store
 
 
 def load_store() -> dict[str, Any]:
+    restore_status = persistence.restore_state_if_configured(DATA_DIR)
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     if not STORE_PATH.exists():
-        save_store(_empty_store())
-    return normalize_store(json.loads(STORE_PATH.read_text(encoding="utf-8")))
+        save_store(_empty_store(), sync_backup=False)
+        created_empty = True
+    else:
+        created_empty = False
+    return normalize_store(json.loads(STORE_PATH.read_text(encoding="utf-8")), sync_backup=not created_empty and restore_status != "failed")
 
 
-def save_store(store: dict[str, Any]) -> None:
+def save_store(store: dict[str, Any], sync_backup: bool = True) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     tmp = STORE_PATH.with_suffix(".tmp")
     tmp.write_text(json.dumps(store, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     tmp.replace(STORE_PATH)
+    if sync_backup:
+        persistence.backup_state_if_configured(DATA_DIR)
 
 
 def get_sociedad(store: dict[str, Any], nombre: str) -> dict[str, Any] | None:
@@ -380,6 +392,131 @@ def safe_filename(name: str) -> str:
     return clean or f"archivo-{uuid.uuid4().hex[:8]}"
 
 
+def safe_path_parts(name: str) -> list[str]:
+    raw = re.sub(r"^[A-Za-z]:", "", str(name or "")).replace("\\", "/")
+    parts = []
+    for part in raw.split("/"):
+        if part.strip() in {"", ".", ".."}:
+            continue
+        clean = safe_filename(part)
+        if clean in {"", ".", ".."}:
+            continue
+        parts.append(clean)
+    return parts or [f"archivo-{uuid.uuid4().hex[:8]}"]
+
+
+def safe_relative_upload_path(name: str) -> str:
+    return "/".join(safe_path_parts(name))
+
+
+def infer_folder_name(files: list[dict[str, object]], fallback: str = "") -> str:
+    if fallback.strip():
+        return safe_filename(fallback.strip())
+    for file_info in files:
+        parts = safe_path_parts(str(file_info.get("filename") or ""))
+        if len(parts) > 1:
+            return parts[0]
+    today = date.today().isoformat()
+    return f"CARPETA LOCAL - {today}"
+
+
+def category_for_upload_path(relative_path: str) -> str:
+    parts = [part.upper() for part in safe_path_parts(relative_path)]
+    filename = parts[-1] if parts else ""
+    if "LEYES" in parts or filename.startswith("REPORTE LEYES"):
+        return "Leyes"
+    if "BOLETINES" in parts or filename.startswith("BOLETIN"):
+        return "Boletines"
+    if filename.startswith("PRELIMINARES"):
+        return "Preliminares"
+    if filename.startswith("CERTIFICADO"):
+        return "Certificados"
+    if filename.endswith(".PDF"):
+        return "Recibos de metales"
+    return "Archivos"
+
+
+def unique_child_path(root: Path, relative_path: str) -> Path:
+    parts = safe_path_parts(relative_path)
+    target_dir = root.joinpath(*parts[:-1])
+    filename = parts[-1]
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target = target_dir / filename
+    if not target.exists():
+        return target
+    stem = target.stem
+    suffix = target.suffix
+    for index in range(2, 10_000):
+        candidate = target_dir / f"{stem} ({index}){suffix}"
+        if not candidate.exists():
+            return candidate
+    return target_dir / f"{uuid.uuid4().hex}-{filename}"
+
+
+def list_local_folders() -> list[dict[str, Any]]:
+    store = load_store()
+    return sorted(store.get("local_folders", []), key=lambda item: item.get("created_at", ""), reverse=True)
+
+
+def get_local_folder(folder_id: str) -> dict[str, Any] | None:
+    store = load_store()
+    return next((folder for folder in store.get("local_folders", []) if folder.get("id") == folder_id), None)
+
+
+def create_local_folder_from_upload(folder_name: str, files: list[dict[str, object]]) -> dict[str, Any]:
+    valid_files = [
+        file_info
+        for file_info in files
+        if str(file_info.get("filename") or "").strip() and isinstance(file_info.get("content"), bytes) and file_info.get("content")
+    ]
+    if not valid_files:
+        raise ValueError("Selecciona una carpeta con archivos.")
+    folder_id = uuid.uuid4().hex
+    today = date.today()
+    folder = {
+        "id": folder_id,
+        "name": infer_folder_name(valid_files, folder_name),
+        "year": str(today.year),
+        "month": core.MESES_ES[today.month],
+        "date": today.isoformat(),
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    store = load_store()
+    store.setdefault("local_folders", []).append(folder)
+    save_store(store, sync_backup=False)
+    try:
+        for file_info in valid_files:
+            filename = str(file_info.get("filename") or "")
+            save_uploaded_file(
+                "local",
+                folder_id,
+                filename,
+                file_info.get("content") or b"",
+                str(file_info.get("content_type") or ""),
+                preserve_path=True,
+                category=category_for_upload_path(filename),
+                sync_backup=False,
+            )
+    except Exception:
+        delete_local_folder(folder_id)
+        raise
+    persistence.backup_state_if_configured(DATA_DIR)
+    return get_local_folder(folder_id) or folder
+
+
+def delete_local_folder(folder_id: str) -> None:
+    store = load_store()
+    folders = store.get("local_folders", [])
+    if not any(folder.get("id") == folder_id for folder in folders):
+        raise ValueError("Carpeta local no encontrada.")
+    store["local_folders"] = [folder for folder in folders if folder.get("id") != folder_id]
+    save_store(store)
+    delete_uploaded_files_for("local", folder_id)
+    folder_dir = UPLOADS_DIR / "local" / folder_id
+    if folder_dir.exists():
+        shutil.rmtree(folder_dir)
+
+
 def uploaded_files_for(folder_source: str, folder_id: str) -> list[dict[str, Any]]:
     store = load_store()
     return [
@@ -389,20 +526,37 @@ def uploaded_files_for(folder_source: str, folder_id: str) -> list[dict[str, Any
     ]
 
 
-def save_uploaded_file(folder_source: str, folder_id: str, filename: str, content: bytes, content_type: str = "") -> dict[str, Any]:
+def save_uploaded_file(
+    folder_source: str,
+    folder_id: str,
+    filename: str,
+    content: bytes,
+    content_type: str = "",
+    preserve_path: bool = False,
+    category: str = "",
+    sync_backup: bool = True,
+) -> dict[str, Any]:
     if not content:
         raise ValueError("El archivo esta vacio.")
-    clean_name = safe_filename(filename)
     file_id = uuid.uuid4().hex
-    folder_dir = UPLOADS_DIR / folder_source / folder_id
-    folder_dir.mkdir(parents=True, exist_ok=True)
-    target = folder_dir / f"{file_id}-{clean_name}"
+    clean_name = safe_filename(filename)
+    folder_root = UPLOADS_DIR / folder_source / folder_id
+    if preserve_path:
+        display_path = safe_relative_upload_path(filename)
+        target = unique_child_path(folder_root, display_path)
+        clean_name = target.name
+    else:
+        display_path = clean_name
+        folder_root.mkdir(parents=True, exist_ok=True)
+        target = folder_root / f"{file_id}-{clean_name}"
     target.write_bytes(content)
     file_info = {
         "id": file_id,
         "folder_source": folder_source,
         "folder_id": folder_id,
         "name": clean_name,
+        "display_path": display_path,
+        "category": category,
         "relative_path": str(target.relative_to(DATA_DIR)),
         "size": len(content),
         "content_type": content_type,
@@ -410,7 +564,7 @@ def save_uploaded_file(folder_source: str, folder_id: str, filename: str, conten
     }
     store = load_store()
     store.setdefault("uploaded_files", []).append(file_info)
-    save_store(store)
+    save_store(store, sync_backup=sync_backup)
     return file_info
 
 

@@ -12,7 +12,8 @@
     <link rel="stylesheet" href="/static/print.css">
     <script src="/static/app.js" defer></script>
   </head>
-  <body>
+  <body class="{% if public %}public-body{% endif %}">
+    {% if not public %}
     <aside class="sidebar">
       <div class="brand">
         <img src="/static/generated/logo.png" alt="">
@@ -44,7 +45,8 @@
         {% endif %}
       </div>
     </aside>
-    <main class="page">
+    {% endif %}
+    <main class="{% if public %}public-page{% else %}page{% endif %}">
       {% block content %}{% endblock %}
     </main>
   </body>

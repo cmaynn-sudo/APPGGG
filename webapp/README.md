@@ -32,7 +32,17 @@ Usuario: admin
 Contraseña: admin
 ```
 
-Las acciones de crear/eliminar carpetas y agregar/eliminar archivos piden la contraseña de autorizacion `ADMIN_ACTION_PASSWORD`.
+Crear entregas no pide contraseña. Las acciones de eliminar carpetas, agregar/eliminar archivos y limpiar registros sensibles piden la contraseña de autorizacion `ADMIN_ACTION_PASSWORD`.
+
+## Respaldo para Render Free
+
+Render Free no conserva archivos locales despues de reinicios, reposos o deploys. Para que no se pierdan entregas, sociedades editadas, regalias y archivos subidos, configura un respaldo GitHub:
+
+1. Crea un token de GitHub con permiso de escritura de contenido sobre este repositorio.
+2. En Render, agrega `GITHUB_BACKUP_TOKEN` como variable secreta.
+3. Deja `GITHUB_BACKUP_REPO=cmaynn-sudo/APPGGG`, `GITHUB_BACKUP_BRANCH=app-data` y `GITHUB_BACKUP_PATH=recepcion-state/state.zip`.
+
+La app crea la rama `app-data` si no existe, guarda alli un ZIP del estado y lo restaura automaticamente al arrancar.
 
 ## Render
 
@@ -52,6 +62,10 @@ ADMIN_PASSWORD=admin
 ADMIN_ACTION_PASSWORD=1216727Er**
 SESSION_SECRET=un-secreto-largo-y-aleatorio
 MAX_UPLOAD_MB=25
+GITHUB_BACKUP_REPO=cmaynn-sudo/APPGGG
+GITHUB_BACKUP_TOKEN=token-secreto-con-contenido-write
+GITHUB_BACKUP_BRANCH=app-data
+GITHUB_BACKUP_PATH=recepcion-state/state.zip
 ```
 
-En el plan gratuito, Render no conserva archivos subidos ni cambios hechos desde la app despues de reinicios o reposos. Los PDFs importados desde `CI GREEN GLOBAL` si viajan con Git porque quedan en `webapp/imported_docs/`.
+En el plan gratuito, Render no conserva archivos subidos ni cambios hechos desde la app despues de reinicios o reposos. Con `GITHUB_BACKUP_TOKEN`, la app restaura esos datos desde la rama `app-data`.
