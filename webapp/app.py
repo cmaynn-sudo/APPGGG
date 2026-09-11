@@ -308,7 +308,7 @@ class RecepcionHandler(BaseHTTPRequestHandler):
         if slug not in TEMPLATE_BY_SLUG:
             self.send_error(HTTPStatus.NOT_FOUND, "Plantilla no encontrada")
             return
-        filename = f"{TEMPLATE_BY_SLUG[slug].title}.html"
+        filename = f"{TEMPLATE_BY_SLUG[slug].title}.pdf"
         self.send_print(slug, {}, download=self.wants_download(query), filename=filename)
 
     def render_business_print(self, path: str, query: dict) -> None:
@@ -327,7 +327,7 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             if not group:
                 self.send_error(HTTPStatus.NOT_FOUND, "Certificado no encontrado")
                 return
-            filename = f"CERTIFICADO DE REGALIAS {group['sociedad']} - {month}.html"
+            filename = f"CERTIFICADO DE REGALIAS {group['sociedad']} - {month}.pdf"
             self.send_print(
                 "certificado-regalias",
                 calculations.certificado_context(group["sociedad"], group["nit"], group["boletines"]),
@@ -345,17 +345,17 @@ class RecepcionHandler(BaseHTTPRequestHandler):
         if doc_type == "preliminares":
             context = calculations.preliminares_context(entrega.get("items", []))
             context.update({"entrega": entrega.get("numero", ""), "fecha": entrega.get("fecha", "")})
-            filename = f"PRELIMINARES - {entrega.get('numero', '')} ({entrega.get('fecha', '')}).html"
+            filename = f"PRELIMINARES - {entrega.get('numero', '')} ({entrega.get('fecha', '')}).pdf"
             self.send_print("preliminares", context, download=download, filename=filename)
             return
         if doc_type == "recibo" and len(parts) >= 4:
             item = self.find_item(entrega, parts[3])
-            filename = f"{item.get('proveedor', 'RECIBO')} ({item.get('codigo', '')}).html"
+            filename = f"{item.get('proveedor', 'RECIBO')} ({item.get('codigo', '')}).pdf"
             self.send_print("recibo-metales", calculations.recibo_context(item), download=download, filename=filename)
             return
         if doc_type == "reporte-analisis" and len(parts) >= 4:
             item = self.find_item(entrega, parts[3])
-            filename = f"REPORTE LEYES - {item.get('barra', item.get('codigo', ''))}.html"
+            filename = f"REPORTE LEYES - {item.get('barra', item.get('codigo', ''))}.pdf"
             self.send_print("reporte-analisis", calculations.reporte_analisis_context(item), download=download, filename=filename)
             return
         if doc_type == "boletin" and len(parts) >= 4:
@@ -363,7 +363,7 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             store = data_store.load_store()
             parametros = entrega.get("parametros", {})
             regalias = data_store.get_regalias_for_month(store, parametros.get("mes_regalias", entrega.get("month", "")))
-            filename = f"BOLETIN - {item.get('barra', item.get('codigo', ''))}.html"
+            filename = f"BOLETIN - {item.get('barra', item.get('codigo', ''))}.pdf"
             self.send_print("boletin", calculations.boletin_context(item, parametros, regalias), download=download, filename=filename)
             return
         self.send_error(HTTPStatus.NOT_FOUND, "Documento no encontrado")
@@ -511,27 +511,31 @@ class RecepcionHandler(BaseHTTPRequestHandler):
         name = self.safe_download_name(detail.get("name", "entrega")) + ".zip"
         self.send_bytes(buffer.getvalue(), "application/zip", filename=name, attachment=True)
 
-    def generated_zip_entries(self, entrega: dict) -> list[tuple[str, str]]:
-        entries: list[tuple[str, str]] = []
+    def generated_zip_entries(self, entrega: dict) -> list[tuple[str, bytes]]:
+        entries: list[tuple[str, bytes]] = []
         if entrega.get("items"):
             context = calculations.preliminares_context(entrega.get("items", []))
             context.update({"entrega": entrega.get("numero", ""), "fecha": entrega.get("fecha", "")})
-            entries.append((f"Preliminares/PRELIMINARES - {entrega.get('numero', '')} ({entrega.get('fecha', '')}).html", renderer.render_print_html("preliminares", context)))
+            entries.append((f"Preliminares/PRELIMINARES - {entrega.get('numero', '')} ({entrega.get('fecha', '')}).pdf", renderer.render_print_pdf("preliminares", context)))
         store = data_store.load_store()
         for item in entrega.get("items", []):
             barra = item.get("barra", item.get("codigo", ""))
             proveedor = item.get("proveedor", "RECIBO")
-            entries.append((f"Recibos de metales/{proveedor} ({barra}).html", renderer.render_print_html("recibo-metales", calculations.recibo_context(item))))
+            entries.append((f"Recibos de metales/{proveedor} ({barra}).pdf", renderer.render_print_pdf("recibo-metales", calculations.recibo_context(item))))
             if item.get("ley_au") not in ("", None) and item.get("ley_ag") not in ("", None):
-                entries.append((f"Leyes/REPORTE LEYES - {barra}.html", renderer.render_print_html("reporte-analisis", calculations.reporte_analisis_context(item))))
+                entries.append((f"Leyes/REPORTE LEYES - {barra}.pdf", renderer.render_print_pdf("reporte-analisis", calculations.reporte_analisis_context(item))))
                 parametros = entrega.get("parametros", {})
                 regalias = data_store.get_regalias_for_month(store, parametros.get("mes_regalias", entrega.get("month", "")))
-                entries.append((f"Boletines/BOLETIN - {barra}.html", renderer.render_print_html("boletin", calculations.boletin_context(item, parametros, regalias))))
+                entries.append((f"Boletines/BOLETIN - {barra}.pdf", renderer.render_print_pdf("boletin", calculations.boletin_context(item, parametros, regalias))))
         return entries
 
     def send_print(self, slug: str, context: dict, download: bool = False, filename: str = "") -> None:
+        if download:
+            pdf = renderer.render_print_pdf(slug, context)
+            self.send_bytes(pdf, "application/pdf", filename=filename or f"{slug}.pdf", attachment=True)
+            return
         body = renderer.render_print_html(slug, context).encode("utf-8")
-        self.send_bytes(body, "text/html; charset=utf-8", filename=filename or f"{slug}.html", attachment=download)
+        self.send_bytes(body, "text/html; charset=utf-8", filename=filename.replace(".pdf", ".html") if filename else f"{slug}.html", attachment=False)
 
     def render_error(self, message: str, status: HTTPStatus = HTTPStatus.BAD_REQUEST) -> None:
         payload = {
