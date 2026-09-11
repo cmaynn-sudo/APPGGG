@@ -47,6 +47,10 @@
     {% if backup_status.last_backup_error or backup_status.last_restore_error %}
     <p class="form-error">{{ backup_status.last_backup_error or backup_status.last_restore_error }}</p>
     {% endif %}
+    <div class="inline-actions">
+      <a class="button button-small" href="/respaldo">Abrir respaldo</a>
+      <a class="button button-small button-ghost" href="/respaldo/descargar">Descargar ZIP</a>
+    </div>
   </div>
 
   <div class="panel">

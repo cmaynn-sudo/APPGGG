@@ -44,6 +44,12 @@ Render Free no conserva archivos locales despues de reinicios, reposos o deploys
 
 La app crea la rama `app-data` si no existe, guarda alli un ZIP del estado y lo restaura automaticamente al arrancar.
 
+Tambien queda disponible el modulo `Respaldo` dentro de la app para:
+
+- Descargar un ZIP completo del estado actual.
+- Restaurar ese ZIP manualmente.
+- Forzar guardar o restaurar desde GitHub cuando `GITHUB_BACKUP_TOKEN` ya este configurado.
+
 ## Render
 
 La app esta preparada para Render sin LibreOffice. El servidor toma el puerto desde `PORT` y escucha en `0.0.0.0` cuando corre en Render.

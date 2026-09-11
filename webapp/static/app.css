@@ -395,10 +395,20 @@ label {
 .action-row,
 .header-actions,
 .row-actions,
-.link-list {
+.link-list,
+.inline-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.inline-actions {
+  align-items: center;
+  margin-top: 14px;
+}
+
+.inline-actions form {
+  margin: 0;
 }
 
 .inline-form {
@@ -470,6 +480,12 @@ label {
   justify-content: center;
   min-height: 42px;
   padding: 11px 16px;
+}
+
+.button-small {
+  font-size: 13px;
+  min-height: 34px;
+  padding: 8px 12px;
 }
 
 .button-secondary {
@@ -663,6 +679,26 @@ label {
   font-size: 14px;
   margin: 0;
   padding: 10px 12px;
+}
+
+.notice {
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+}
+
+.notice.success {
+  background: rgba(14, 116, 144, 0.11);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+
+.notice.danger {
+  background: var(--danger-soft);
+  border: 1px solid var(--danger);
+  color: var(--danger);
 }
 
 @media (max-width: 1120px) {

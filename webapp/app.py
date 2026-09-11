@@ -6,6 +6,7 @@ import mimetypes
 import os
 import re
 import zipfile
+from datetime import datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -72,6 +73,10 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 self.render_sociedades()
             elif path == "/regalias":
                 self.render_regalias()
+            elif path == "/respaldo":
+                self.render_respaldo(query)
+            elif path == "/respaldo/descargar":
+                self.download_state_backup()
             elif path == "/entregas":
                 self.render_entregas(query)
             elif path.startswith("/entregas/web/") and path.endswith("/descargar"):
@@ -136,6 +141,10 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 folder = data_store.create_local_folder_from_upload(fields.get("folder_name", ""), files)
                 self.redirect(self.folder_url("local", folder["id"]))
                 return
+            if path == "/respaldo/importar":
+                _fields, files = self.read_multipart_form()
+                self.import_state_backup(files)
+                return
 
             form = self.read_form()
             if path == "/documentos/crear":
@@ -181,6 +190,10 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 self.delete_folder(form)
             elif path == "/archivos/eliminar":
                 self.delete_file(form)
+            elif path == "/respaldo/guardar-github":
+                self.save_state_to_github()
+            elif path == "/respaldo/restaurar-github":
+                self.restore_state_from_github()
             else:
                 self.send_error(HTTPStatus.NOT_FOUND, "Ruta no encontrada")
         except Exception as exc:
@@ -257,6 +270,18 @@ class RecepcionHandler(BaseHTTPRequestHandler):
 
     def render_regalias(self) -> None:
         self.render("regalias.html", {"regalias": data_store.load_store().get("regalias", []), "months": core.MESES_ORDEN})
+
+    def render_respaldo(self, query: dict) -> None:
+        message = query.get("msg", [""])[0]
+        error = query.get("error", [""])[0]
+        self.render(
+            "respaldo.html",
+            {
+                "backup_status": persistence.runtime_status(data_store.DATA_DIR),
+                "message": message,
+                "error": error,
+            },
+        )
 
     def render_entregas(self, query: dict) -> None:
         folders = document_library.all_folders()
@@ -467,6 +492,48 @@ class RecepcionHandler(BaseHTTPRequestHandler):
         else:
             raise ValueError("Archivo invalido.")
         self.redirect(form.get("next", "/entregas") or "/entregas")
+
+    def download_state_backup(self) -> None:
+        archive = persistence.build_backup_archive(data_store.DATA_DIR)
+        if not archive:
+            self.render_error("Todavia no hay datos para respaldar.")
+            return
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        self.send_bytes(
+            archive,
+            "application/zip",
+            filename=f"recepcion-respaldo-{stamp}.zip",
+            attachment=True,
+        )
+
+    def import_state_backup(self, files: list[dict[str, object]]) -> None:
+        backup_file = next((file_info for file_info in files if file_info.get("field") == "respaldo"), None)
+        if not backup_file or not isinstance(backup_file.get("content"), bytes):
+            raise ValueError("Selecciona un respaldo ZIP.")
+        persistence.import_backup_archive(data_store.DATA_DIR, backup_file["content"])
+        self.redirect("/respaldo?msg=Respaldo%20restaurado")
+
+    def save_state_to_github(self) -> None:
+        if not persistence.is_configured():
+            self.redirect("/respaldo?error=Configura%20GITHUB_BACKUP_TOKEN%20en%20Render")
+            return
+        if persistence.backup_state_if_configured(data_store.DATA_DIR):
+            self.redirect("/respaldo?msg=Respaldo%20guardado%20en%20GitHub")
+            return
+        self.redirect("/respaldo?error=No%20se%20pudo%20guardar%20el%20respaldo")
+
+    def restore_state_from_github(self) -> None:
+        if not persistence.is_configured():
+            self.redirect("/respaldo?error=Configura%20GITHUB_BACKUP_TOKEN%20en%20Render")
+            return
+        result = persistence.restore_state_from_github(data_store.DATA_DIR)
+        if result == "restored":
+            self.redirect("/respaldo?msg=Respaldo%20restaurado%20desde%20GitHub")
+            return
+        if result == "remote-empty":
+            self.redirect("/respaldo?error=No%20hay%20respaldo%20guardado%20en%20GitHub")
+            return
+        self.redirect(f"/respaldo?error={quote('No se pudo restaurar el respaldo: ' + result)}")
 
     def serve_imported_file(self, file_id: str, download: bool = False) -> None:
         file_info, path = document_library.find_imported_file(file_id)

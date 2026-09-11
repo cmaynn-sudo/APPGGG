@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Respaldo{% endblock %}
+
+{% block content %}
+<header class="page-header">
+  <div>
+    <p class="eyebrow">Persistencia</p>
+    <h1>Respaldo de datos</h1>
+    <p>Guarda y recupera entregas, sociedades, regalias, parametros y archivos subidos.</p>
+  </div>
+  <div class="header-metrics">
+    <div><span>{{ "Activo" if backup_status.enabled else "Pendiente" }}</span><small>GitHub</small></div>
+    <div><span>{{ "Si" if backup_status.local_store_exists else "No" }}</span><small>Datos locales</small></div>
+    <div><span>{{ "Si" if backup_status.local_uploads_exists else "No" }}</span><small>Archivos</small></div>
+  </div>
+</header>
+
+{% if message %}
+<div class="notice success">{{ message }}</div>
+{% endif %}
+{% if error or backup_status.last_backup_error or backup_status.last_restore_error %}
+<div class="notice danger">{{ error or backup_status.last_backup_error or backup_status.last_restore_error }}</div>
+{% endif %}
+
+<section class="work-grid">
+  <div class="panel">
+    <div class="panel-title">
+      <h2>Respaldo manual</h2>
+      <span>ZIP</span>
+    </div>
+    <p class="muted">Descarga una copia completa del trabajo actual para recuperarla despues en Render o local.</p>
+    <div class="inline-actions">
+      <a class="button" href="/respaldo/descargar">Descargar respaldo</a>
+    </div>
+  </div>
+
+  <form class="panel" method="post" action="/respaldo/importar" enctype="multipart/form-data">
+    <div class="panel-title">
+      <h2>Restaurar manual</h2>
+      <span>ZIP</span>
+    </div>
+    <label>Archivo de respaldo
+      <input type="file" name="respaldo" accept=".zip,application/zip" required>
+    </label>
+    <button class="button" type="submit">Restaurar respaldo</button>
+  </form>
+
+  <div class="panel panel-wide">
+    <div class="panel-title">
+      <h2>Respaldo automatico en GitHub</h2>
+      <span>{{ "Configurado" if backup_status.enabled else "Sin token" }}</span>
+    </div>
+    {% if backup_status.enabled %}
+    <p class="muted">Repositorio: {{ backup_status.repo }} · Rama: {{ backup_status.branch }} · Archivo: {{ backup_status.path }}</p>
+    <div class="inline-actions">
+      <form method="post" action="/respaldo/guardar-github">
+        <button class="button" type="submit">Guardar ahora</button>
+      </form>
+      <form method="post" action="/respaldo/restaurar-github">
+        <button class="button button-ghost" type="submit">Restaurar desde GitHub</button>
+      </form>
+    </div>
+    {% if backup_status.last_backup_at %}
+    <p class="muted">Ultimo guardado: {{ backup_status.last_backup_at }}</p>
+    {% endif %}
+    {% if backup_status.last_restore_at %}
+    <p class="muted">Ultima restauracion: {{ backup_status.last_restore_at }}</p>
+    {% endif %}
+    {% else %}
+    <p class="muted">Para que Render Free no pierda los cambios al dormir, agrega en Render la variable GITHUB_BACKUP_TOKEN con permiso de escritura sobre el repositorio.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

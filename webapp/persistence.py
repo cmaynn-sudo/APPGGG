@@ -58,14 +58,18 @@ def runtime_status(data_dir: Path | None = None) -> dict[str, Any]:
     return status
 
 
-def restore_state_if_configured(data_dir: Path) -> str:
+def restore_state_if_configured(data_dir: Path, force: bool = False) -> str:
     global RESTORE_ONCE, LAST_RESTORE_AT, LAST_RESTORE_ERROR
-    if RESTORE_ONCE:
+    if RESTORE_ONCE and not force:
         return "skipped"
     RESTORE_ONCE = True
     if not is_configured():
         return "disabled"
-    if (data_dir / STORE_FILENAME).exists() and os.environ.get("GITHUB_BACKUP_FORCE_RESTORE") != "true":
+    if (
+        (data_dir / STORE_FILENAME).exists()
+        and os.environ.get("GITHUB_BACKUP_FORCE_RESTORE") != "true"
+        and not force
+    ):
         return "local-present"
     try:
         archive = download_backup()
@@ -79,6 +83,10 @@ def restore_state_if_configured(data_dir: Path) -> str:
         LAST_RESTORE_ERROR = str(exc)
         print(f"[recepcion] No se pudo restaurar el respaldo externo: {exc}")
         return "failed"
+
+
+def restore_state_from_github(data_dir: Path) -> str:
+    return restore_state_if_configured(data_dir, force=True)
 
 
 def backup_state_if_configured(data_dir: Path) -> bool:
@@ -112,6 +120,11 @@ def build_backup_archive(data_dir: Path) -> bytes:
                 if path.is_file():
                     zf.write(path, f"{UPLOADS_DIRNAME}/{path.relative_to(uploads_dir).as_posix()}")
     return buffer.getvalue()
+
+
+def import_backup_archive(data_dir: Path, archive: bytes) -> None:
+    extract_backup(data_dir, archive)
+    backup_state_if_configured(data_dir)
 
 
 def extract_backup(data_dir: Path, archive: bytes) -> None:
