@@ -32,7 +32,7 @@ Usuario: admin
 Contraseña: admin
 ```
 
-Crear entregas no pide contraseña. Las acciones de eliminar carpetas, agregar/eliminar archivos y limpiar registros sensibles piden la contraseña de autorizacion `ADMIN_ACTION_PASSWORD`.
+Despues del login, el trabajo normal no pide claves adicionales: crear entregas, editar, eliminar, subir archivos y subir carpetas se hace desde la sesion activa.
 
 ## Respaldo para Render Free
 
@@ -59,7 +59,6 @@ Variables recomendadas:
 ```text
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=admin
-ADMIN_ACTION_PASSWORD=1216727Er**
 SESSION_SECRET=un-secreto-largo-y-aleatorio
 MAX_UPLOAD_MB=25
 GITHUB_BACKUP_REPO=cmaynn-sudo/APPGGG

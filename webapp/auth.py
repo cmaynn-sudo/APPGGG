@@ -102,8 +102,3 @@ def session_cookie_header(token: str, secure: bool = False) -> str:
 
 def clear_cookie_header() -> str:
     return f"{SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
-
-
-def action_password_matches(value: str | None) -> bool:
-    expected = os.environ.get("ADMIN_ACTION_PASSWORD", "1216727Er**")
-    return hmac.compare_digest(str(value or ""), expected)

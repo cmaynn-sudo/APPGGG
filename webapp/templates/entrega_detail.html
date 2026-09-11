@@ -25,7 +25,6 @@
       <input type="hidden" name="folder_source" value="{{ folder.source }}">
       <input type="hidden" name="folder_id" value="{{ folder.id }}">
       <label>Archivo<input name="archivo" type="file" required></label>
-      <label>Autorización<input name="action_password" type="password" required></label>
       <button class="button" type="submit">Subir archivo</button>
     </form>
   </div>
@@ -34,12 +33,11 @@
   <div class="panel danger-panel">
     <div class="panel-title">
       <h2>Eliminar carpeta</h2>
-      <span>Requiere autorización</span>
+      <span>Quita la carpeta de la biblioteca</span>
     </div>
     <form class="form-grid" method="post" action="/entregas/eliminar">
       <input type="hidden" name="folder_source" value="{{ folder.source }}">
       <input type="hidden" name="folder_id" value="{{ folder.id }}">
-      <label>Contraseña<input name="action_password" type="password" required></label>
       <button class="button button-danger" type="submit">Eliminar</button>
     </form>
   </div>
@@ -67,7 +65,6 @@
           <input type="hidden" name="kind" value="{{ doc.kind }}">
           <input type="hidden" name="file_id" value="{{ doc.id }}">
           <input type="hidden" name="next" value="{{ next_url }}">
-          <input name="action_password" type="password" placeholder="Autorización" required>
           <button class="link-button" type="submit">Eliminar</button>
         </form>
         {% endif %}

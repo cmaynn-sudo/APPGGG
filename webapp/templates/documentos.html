@@ -79,7 +79,6 @@
     <label>Peso inicial<input name="peso_inicial" required inputmode="decimal"></label>
     <label>Peso post fundicion<input name="peso_post" required inputmode="decimal"></label>
     <label>Muestras<input name="muestras" inputmode="decimal" value="0"></label>
-    <label>Autorización<input name="action_password" type="password" required></label>
     <button class="button" type="submit">Agregar</button>
   </form>
 </section>
@@ -139,7 +138,6 @@
             <input type="hidden" name="next" value="/documentos">
             <input type="hidden" name="entrega_id" value="{{ entrega.id }}">
             <input type="hidden" name="item_id" value="{{ item.id }}">
-            <input name="action_password" type="password" placeholder="Autorización" required>
             <button class="link-button" type="submit">Eliminar registro</button>
           </form>
         </td>

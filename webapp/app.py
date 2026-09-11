@@ -129,12 +129,10 @@ class RecepcionHandler(BaseHTTPRequestHandler):
 
             if path == "/entregas/upload":
                 fields, files = self.read_multipart_form()
-                self.require_action_password(fields.get("action_password"))
                 self.handle_upload(fields, files)
                 return
             if path == "/entregas/importar-carpeta":
                 fields, files = self.read_multipart_form()
-                self.require_action_password(fields.get("action_password"))
                 folder = data_store.create_local_folder_from_upload(fields.get("folder_name", ""), files)
                 self.redirect(self.folder_url("local", folder["id"]))
                 return
@@ -147,49 +145,41 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 data_store.set_active_entrega(form.get("entrega_id", ""))
                 self.redirect(form.get("next", "/documentos"))
             elif path == "/documentos/agregar":
-                self.require_action_password(form.get("action_password"))
                 data_store.add_entrega_item(form)
                 self.redirect("/documentos")
             elif path == "/documentos/editar-item":
                 data_store.update_entrega_item(form)
                 self.redirect(form.get("next", "/documentos") or "/documentos")
             elif path == "/documentos/eliminar-item":
-                self.require_action_password(form.get("action_password"))
                 data_store.delete_entrega_item(form.get("entrega_id", ""), form.get("item_id", ""))
                 self.redirect(form.get("next", "/documentos") or "/documentos")
             elif path == "/leyes/guardar":
                 data_store.update_ley(form)
                 self.redirect("/leyes")
             elif path == "/leyes/eliminar":
-                self.require_action_password(form.get("action_password"))
                 data_store.clear_ley(form)
                 self.redirect("/leyes")
             elif path == "/boletines/parametros":
                 data_store.update_parametros(form)
                 self.redirect("/boletines")
             elif path == "/boletines/parametros/eliminar":
-                self.require_action_password(form.get("action_password"))
                 data_store.clear_parametros(form.get("entrega_id", ""))
                 self.redirect("/boletines")
             elif path == "/regalias/guardar":
                 data_store.upsert_regalia(form)
                 self.redirect("/regalias")
             elif path == "/regalias/eliminar":
-                self.require_action_password(form.get("action_password"))
                 data_store.delete_regalia(form.get("mes", ""))
                 self.redirect("/regalias")
             elif path == "/sociedades/guardar":
                 data_store.upsert_sociedad(form)
                 self.redirect("/sociedades")
             elif path == "/sociedades/eliminar":
-                self.require_action_password(form.get("action_password"))
                 data_store.delete_sociedad(form.get("sociedad", ""))
                 self.redirect("/sociedades")
             elif path == "/entregas/eliminar":
-                self.require_action_password(form.get("action_password"))
                 self.delete_folder(form)
             elif path == "/archivos/eliminar":
-                self.require_action_password(form.get("action_password"))
                 self.delete_file(form)
             else:
                 self.send_error(HTTPStatus.NOT_FOUND, "Ruta no encontrada")
@@ -424,10 +414,6 @@ class RecepcionHandler(BaseHTTPRequestHandler):
         next_url = "/documentos" if (self.path or "/") == "/" else self.path or "/documentos"
         self.redirect(f"/login?next={quote(next_url, safe='')}")
         return False
-
-    def require_action_password(self, value: str | None) -> None:
-        if not auth.action_password_matches(value):
-            raise ValueError("Contraseña de autorizacion incorrecta.")
 
     def is_secure_request(self) -> bool:
         forwarded = self.headers.get("Forwarded", "")
