@@ -28,6 +28,7 @@
       <a class="flow-step" href="/boletines"><span>3</span><strong>Boletines</strong><small>Liquidacion y cierre</small></a>
       <a class="flow-step" href="/entregas"><span>4</span><strong>Entregas</strong><small>Carpetas, PDFs y descargas</small></a>
       <a class="flow-step" href="/regalias"><span>5</span><strong>Regalias</strong><small>Actualizacion mensual</small></a>
+      <a class="flow-step" href="/parametros"><span>6</span><strong>Parametros</strong><small>Retencion y negociacion</small></a>
     </div>
   </div>
 
@@ -48,8 +49,8 @@
     <p class="form-error">{{ backup_status.last_backup_error or backup_status.last_restore_error }}</p>
     {% endif %}
     <div class="inline-actions">
-      <a class="button button-small" href="/respaldo">Abrir respaldo</a>
-      <a class="button button-small button-ghost" href="/respaldo/descargar">Descargar ZIP</a>
+      <a class="button button-small" href="/respaldo" data-tooltip="Abrir modulo de respaldo">Abrir respaldo</a>
+      <a class="button button-small button-ghost" href="/respaldo/descargar" data-tooltip="Descargar respaldo completo">Descargar ZIP</a>
     </div>
   </div>
 

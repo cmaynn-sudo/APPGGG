@@ -11,7 +11,8 @@
   </div>
   {% if entrega %}
   <div class="header-actions">
-    <a class="button button-secondary" href="/entregas/web/{{ entrega.id }}">Abrir carpeta</a>
+    <a class="button button-secondary" href="/parametros" data-tooltip="Modificar retencion y precio de negociacion">Parametros</a>
+    <a class="button button-secondary" href="/entregas/web/{{ entrega.id }}" data-tooltip="Abrir carpeta de esta entrega">Abrir carpeta</a>
   </div>
   {% endif %}
 </header>
@@ -34,11 +35,11 @@
     <label>Dolar<input name="dolar" value="{{ entrega['parametros']['dolar'] }}" inputmode="decimal"></label>
     <label>OZ AU<input name="oz_au" value="{{ entrega['parametros']['oz_au'] }}" inputmode="decimal"></label>
     <label>OZ AG<input name="oz_ag" value="{{ entrega['parametros']['oz_ag'] }}" inputmode="decimal"></label>
-    <button class="button" type="submit">Guardar parametros</button>
+    <button class="button" type="submit" data-tooltip="Guardar mes, dolar y onzas de esta entrega">Guardar parametros</button>
   </form>
   <form class="delete-inline-form section-gap" method="post" action="/boletines/parametros/eliminar">
     <input type="hidden" name="entrega_id" value="{{ entrega.id }}">
-    <button class="link-button" type="submit">Limpiar parámetros</button>
+    <button class="link-button" type="submit" data-tooltip="Vaciar los parametros de esta entrega">Limpiar parametros</button>
   </form>
 </section>
 
@@ -66,9 +67,9 @@
         <td>{{ item.fino_oro }}</td>
         <td>{{ item.fino_plata }}</td>
         <td>{{ item.valor_transferir }}</td>
-        <td class="link-list">
-          <a href="/print/boletin/{{ entrega.id }}/{{ item.id }}" target="_blank">Boletin</a>
-          <a href="/print/boletin/{{ entrega.id }}/{{ item.id }}?download=1">Descargar</a>
+        <td class="row-actions">
+          <a class="icon-action" href="/print/boletin/{{ entrega.id }}/{{ item.id }}" target="_blank" data-tooltip="Ver boletin en pantalla" aria-label="Ver boletin">Ver</a>
+          <a class="icon-action primary" href="/print/boletin/{{ entrega.id }}/{{ item.id }}?download=1" data-tooltip="Descargar boletin en PDF" aria-label="Descargar boletin en PDF">PDF</a>
         </td>
       </tr>
       {% else %}

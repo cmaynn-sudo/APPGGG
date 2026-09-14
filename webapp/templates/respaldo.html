@@ -31,7 +31,7 @@
     </div>
     <p class="muted">Descarga una copia completa del trabajo actual para recuperarla despues en Render o local.</p>
     <div class="inline-actions">
-      <a class="button" href="/respaldo/descargar">Descargar respaldo</a>
+      <a class="button" href="/respaldo/descargar" data-tooltip="Descargar ZIP completo del estado actual">Descargar respaldo</a>
     </div>
   </div>
 
@@ -43,7 +43,7 @@
     <label>Archivo de respaldo
       <input type="file" name="respaldo" accept=".zip,application/zip" required>
     </label>
-    <button class="button" type="submit">Restaurar respaldo</button>
+    <button class="button" type="submit" data-tooltip="Cargar datos desde un ZIP de respaldo">Restaurar respaldo</button>
   </form>
 
   <div class="panel panel-wide">
@@ -55,10 +55,10 @@
     <p class="muted">Repositorio: {{ backup_status.repo }} · Rama: {{ backup_status.branch }} · Archivo: {{ backup_status.path }}</p>
     <div class="inline-actions">
       <form method="post" action="/respaldo/guardar-github">
-        <button class="button" type="submit">Guardar ahora</button>
+        <button class="button" type="submit" data-tooltip="Enviar respaldo actual a GitHub">Guardar ahora</button>
       </form>
       <form method="post" action="/respaldo/restaurar-github">
-        <button class="button button-ghost" type="submit">Restaurar desde GitHub</button>
+        <button class="button button-ghost" type="submit" data-tooltip="Recuperar el respaldo guardado en GitHub">Restaurar desde GitHub</button>
       </form>
     </div>
     {% if backup_status.last_backup_at %}

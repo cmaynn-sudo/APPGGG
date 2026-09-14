@@ -26,7 +26,7 @@
     </label>
     <label>Regalia AU<input name="au" inputmode="decimal" placeholder="419835,44"></label>
     <label>Regalia AG<input name="ag" inputmode="decimal" placeholder="6309,32"></label>
-    <button class="button" type="submit">Guardar regalia</button>
+    <button class="button" type="submit" data-tooltip="Guardar valores mensuales de regalias">Guardar regalia</button>
   </form>
 </section>
 
@@ -42,11 +42,11 @@
         <label>Mes<input name="mes" value="{{ row.mes }}" readonly></label>
         <label>Regalia AU<input name="au" value="{{ row.au if row.au is not none else '' }}" inputmode="decimal"></label>
         <label>Regalia AG<input name="ag" value="{{ row.ag if row.ag is not none else '' }}" inputmode="decimal"></label>
-        <button class="button button-secondary" type="submit">Actualizar</button>
+        <button class="button button-secondary" type="submit" data-tooltip="Actualizar este mes de regalias">Actualizar</button>
       </form>
       <form class="delete-inline-form" method="post" action="/regalias/eliminar">
         <input type="hidden" name="mes" value="{{ row.mes }}">
-        <button class="link-button" type="submit">Eliminar</button>
+        <button class="link-button" type="submit" data-tooltip="Eliminar este mes de regalias">Eliminar</button>
       </form>
     </article>
     {% else %}

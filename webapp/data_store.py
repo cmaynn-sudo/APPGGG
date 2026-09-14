@@ -18,12 +18,17 @@ from template_catalog import WEBAPP_DIR
 DATA_DIR = Path(os.environ.get("DATA_DIR", str(WEBAPP_DIR / "data")))
 STORE_PATH = DATA_DIR / "recepcion_store.json"
 UPLOADS_DIR = DATA_DIR / "uploads"
+DEFAULT_BOLETIN_SETTINGS = {
+    "precio_negociacion_porcentaje": "97,5",
+    "retencion_porcentaje": "2,5",
+}
 
 
 def _empty_store() -> dict[str, Any]:
     return {
         "sociedades": core.read_sociedades(),
         "regalias": core.read_regalias(),
+        "boletin_settings": dict(DEFAULT_BOLETIN_SETTINGS),
         "entregas": [],
         "local_folders": [],
         "uploaded_files": [],
@@ -37,6 +42,15 @@ def normalize_store(store: dict[str, Any], sync_backup: bool = True) -> dict[str
     for key, value in defaults.items():
         if key not in store:
             store[key] = value
+            changed = True
+    settings = store.get("boletin_settings")
+    if not isinstance(settings, dict):
+        settings = {}
+        store["boletin_settings"] = settings
+        changed = True
+    for key, value in DEFAULT_BOLETIN_SETTINGS.items():
+        if key not in settings or settings.get(key) in (None, ""):
+            settings[key] = value
             changed = True
     for entrega in store.get("entregas", []):
         if "items" not in entrega:
@@ -93,6 +107,38 @@ def get_regalias_for_month(store: dict[str, Any], mes: str) -> dict[str, Any]:
         if row.get("mes", "").strip().lower() == target:
             return row
     return {"mes": mes, "au": 0, "ag": 0}
+
+
+def get_boletin_settings(store: dict[str, Any] | None = None) -> dict[str, Any]:
+    data = store or load_store()
+    settings = dict(DEFAULT_BOLETIN_SETTINGS)
+    saved = data.get("boletin_settings") or {}
+    if isinstance(saved, dict):
+        settings.update(saved)
+    return settings
+
+
+def update_boletin_settings(form: dict[str, str]) -> dict[str, Any]:
+    settings = {
+        "precio_negociacion_porcentaje": normalize_percent_field(form.get("precio_negociacion_porcentaje", ""), "97,5"),
+        "retencion_porcentaje": normalize_percent_field(form.get("retencion_porcentaje", ""), "2,5"),
+    }
+    store = load_store()
+    store["boletin_settings"] = settings
+    save_store(store)
+    return settings
+
+
+def normalize_percent_field(raw: str, fallback: str) -> str:
+    value = str(raw or fallback).strip()
+    try:
+        number = core.parse_decimal_input(value)
+    except ValueError as exc:
+        raise ValueError("El porcentaje debe ser numerico.") from exc
+    if number < 0:
+        raise ValueError("El porcentaje no puede ser negativo.")
+    text = f"{number:.4f}".rstrip("0").rstrip(".")
+    return text.replace(".", ",")
 
 
 def create_entrega(numero: str) -> dict[str, Any]:
@@ -619,11 +665,12 @@ def boletines_for_entrega(entrega: dict[str, Any]) -> list[dict[str, Any]]:
     store = load_store()
     parametros = entrega.get("parametros", {})
     regalias = get_regalias_for_month(store, parametros.get("mes_regalias", entrega.get("month", "")))
+    settings = get_boletin_settings(store)
     rows = []
     for item in entrega.get("items", []):
         if item.get("ley_au") in ("", None) or item.get("ley_ag") in ("", None):
             continue
-        rows.append(calculations.boletin_context(item, parametros, regalias))
+        rows.append(calculations.boletin_context(item, parametros, regalias, settings))
     return rows
 
 

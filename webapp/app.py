@@ -73,6 +73,8 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 self.render_sociedades()
             elif path == "/regalias":
                 self.render_regalias()
+            elif path == "/parametros":
+                self.render_parametros()
             elif path == "/respaldo":
                 self.render_respaldo(query)
             elif path == "/respaldo/descargar":
@@ -186,6 +188,9 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             elif path == "/sociedades/eliminar":
                 data_store.delete_sociedad(form.get("sociedad", ""))
                 self.redirect("/sociedades")
+            elif path == "/parametros/boletines":
+                data_store.update_boletin_settings(form)
+                self.redirect("/parametros")
             elif path == "/entregas/eliminar":
                 self.delete_folder(form)
             elif path == "/archivos/eliminar":
@@ -244,6 +249,7 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 "entregas": data_store.list_entregas(),
                 "boletines": boletines,
                 "regalias": store.get("regalias", []),
+                "settings": data_store.get_boletin_settings(store),
             },
         )
 
@@ -270,6 +276,15 @@ class RecepcionHandler(BaseHTTPRequestHandler):
 
     def render_regalias(self) -> None:
         self.render("regalias.html", {"regalias": data_store.load_store().get("regalias", []), "months": core.MESES_ORDEN})
+
+    def render_parametros(self) -> None:
+        store = data_store.load_store()
+        self.render(
+            "parametros.html",
+            {
+                "settings": data_store.get_boletin_settings(store),
+            },
+        )
 
     def render_respaldo(self, query: dict) -> None:
         message = query.get("msg", [""])[0]
@@ -388,8 +403,9 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             store = data_store.load_store()
             parametros = entrega.get("parametros", {})
             regalias = data_store.get_regalias_for_month(store, parametros.get("mes_regalias", entrega.get("month", "")))
+            settings = data_store.get_boletin_settings(store)
             filename = f"BOLETIN - {item.get('barra', item.get('codigo', ''))}.pdf"
-            self.send_print("boletin", calculations.boletin_context(item, parametros, regalias), download=download, filename=filename)
+            self.send_print("boletin", calculations.boletin_context(item, parametros, regalias, settings), download=download, filename=filename)
             return
         self.send_error(HTTPStatus.NOT_FOUND, "Documento no encontrado")
 
@@ -593,7 +609,8 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 entries.append((f"Leyes/REPORTE LEYES - {barra}.pdf", renderer.render_print_pdf("reporte-analisis", calculations.reporte_analisis_context(item))))
                 parametros = entrega.get("parametros", {})
                 regalias = data_store.get_regalias_for_month(store, parametros.get("mes_regalias", entrega.get("month", "")))
-                entries.append((f"Boletines/BOLETIN - {barra}.pdf", renderer.render_print_pdf("boletin", calculations.boletin_context(item, parametros, regalias))))
+                settings = data_store.get_boletin_settings(store)
+                entries.append((f"Boletines/BOLETIN - {barra}.pdf", renderer.render_print_pdf("boletin", calculations.boletin_context(item, parametros, regalias, settings))))
         return entries
 
     def send_print(self, slug: str, context: dict, download: bool = False, filename: str = "") -> None:

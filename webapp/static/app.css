@@ -271,7 +271,7 @@ h2 {
 .flow {
   display: grid;
   gap: 10px;
-  grid-template-columns: repeat(5, minmax(145px, 1fr));
+  grid-template-columns: repeat(6, minmax(130px, 1fr));
 }
 
 .flow-step,
@@ -617,7 +617,7 @@ label {
   justify-content: flex-end;
 }
 
-.row-actions a,
+.row-actions a:not(.icon-action),
 .link-list a,
 .link-button {
   background: transparent;
@@ -634,6 +634,99 @@ label {
 
 .link-button {
   color: var(--danger);
+}
+
+.icon-action {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 700;
+  justify-content: center;
+  min-height: 34px;
+  min-width: 48px;
+  padding: 7px 10px;
+}
+
+.icon-action:hover,
+.icon-action:focus-visible {
+  background: var(--soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.icon-action.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.icon-action.primary:hover,
+.icon-action.primary:focus-visible {
+  background: var(--accent-2);
+  border-color: var(--accent-2);
+  color: #fff;
+}
+
+.setting-list {
+  display: grid;
+  gap: 10px;
+}
+
+.setting-list div {
+  align-items: center;
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  padding: 12px;
+}
+
+.setting-list span {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.setting-list strong {
+  color: var(--accent);
+  font-size: 22px;
+}
+
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::after {
+  background: var(--ink);
+  border-radius: 8px;
+  bottom: calc(100% + 8px);
+  box-shadow: var(--shadow);
+  color: var(--panel);
+  content: attr(data-tooltip);
+  font-size: 12px;
+  font-weight: 700;
+  left: 50%;
+  line-height: 1.2;
+  max-width: 230px;
+  opacity: 0;
+  padding: 8px 10px;
+  pointer-events: none;
+  position: absolute;
+  transform: translateX(-50%) translateY(4px);
+  transition: opacity 160ms ease, transform 160ms ease;
+  white-space: normal;
+  width: max-content;
+  z-index: 50;
+}
+
+[data-tooltip]:hover::after,
+[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 .login-shell {

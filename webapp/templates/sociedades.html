@@ -23,7 +23,7 @@
     <label>Municipio<input name="municipio"></label>
     <label>Prefijo<input name="prefijo" required></label>
     <label>Consecutivo<input name="consecutivo" value="0" inputmode="numeric"></label>
-    <button class="button" type="submit">Guardar sociedad</button>
+    <button class="button" type="submit" data-tooltip="Crear sociedad para nuevas entregas">Guardar sociedad</button>
   </form>
 </section>
 
@@ -43,11 +43,11 @@
         <label>Municipio<input name="municipio" value="{{ row.municipio }}"></label>
         <label>Prefijo<input name="prefijo" value="{{ row.prefijo }}" required></label>
         <label>Consecutivo<input name="consecutivo" value="{{ row.consecutivo }}" inputmode="numeric"></label>
-        <button class="button button-secondary" type="submit">Actualizar</button>
+        <button class="button button-secondary" type="submit" data-tooltip="Guardar cambios de esta sociedad">Actualizar</button>
       </form>
       <form class="delete-inline-form" method="post" action="/sociedades/eliminar">
         <input type="hidden" name="sociedad" value="{{ row.sociedad }}">
-        <button class="link-button" type="submit">Eliminar sociedad</button>
+        <button class="link-button" type="submit" data-tooltip="Eliminar esta sociedad">Eliminar sociedad</button>
       </form>
     </article>
     {% else %}

@@ -287,6 +287,14 @@
   grid-column: span 2;
 }
 
+.param-notes {
+  display: flex;
+  font-size: 8pt;
+  gap: 0.3in;
+  justify-content: center;
+  margin-top: 0.1in;
+}
+
 @media print {
   body {
     background: white;

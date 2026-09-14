@@ -10,6 +10,7 @@ La app conserva los Excel actuales como referencia visual y replica sus formulas
 - `app.py` levanta un panel web para operar entregas, leyes, boletines y certificados.
 - `calculations.py` replica las formulas actuales de Excel en Python puro.
 - `data_store.py` guarda entregas, regalias editadas y archivos subidos.
+- `renderer.py` genera las vistas HTML y los PDFs descargables.
 - `document_library.py` mezcla entregas web, documentos generados e importaciones locales.
 - `import_local_deliveries.py` copia los documentos existentes desde `~/Documents/CI GREEN GLOBAL` a `webapp/imported_docs/`.
 
@@ -33,6 +34,21 @@ Contraseña: admin
 ```
 
 Despues del login, el trabajo normal no pide claves adicionales: crear entregas, editar, eliminar, subir archivos y subir carpetas se hace desde la sesion activa.
+
+## Parametros de boletines
+
+En el menu `Parametros` se editan los porcentajes globales de:
+
+- Precio de negociacion, por defecto `97,5%`.
+- Retencion, por defecto `2,5%`.
+
+La formula de precio de oro mantiene el redondeo de Excel:
+
+```text
+REDONDEAR(((OZ AU / 31,10347) * dolar) * precio_negociacion; 0)
+```
+
+Puedes escribir porcentajes con coma o punto decimal, por ejemplo `97,5`, `97.5`, `2,5` o `2.5`.
 
 ## Respaldo para Render Free
 

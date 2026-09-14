@@ -11,7 +11,7 @@
   </div>
   {% if entrega %}
   <div class="header-actions">
-    <a class="button button-secondary" href="/entregas/web/{{ entrega.id }}">Abrir carpeta</a>
+    <a class="button button-secondary" href="/entregas/web/{{ entrega.id }}" data-tooltip="Abrir carpeta de esta entrega">Abrir carpeta</a>
   </div>
   {% endif %}
 </header>
@@ -47,19 +47,19 @@
             <input type="hidden" name="item_id" value="{{ item.id }}">
             <input name="ley_au" value="{{ item.ley_au }}" placeholder="AU" required inputmode="decimal">
             <input name="ley_ag" value="{{ item.ley_ag }}" placeholder="AG" required inputmode="decimal">
-            <button type="submit">Guardar</button>
+            <button type="submit" data-tooltip="Guardar leyes AU y AG">Guardar</button>
           </form>
         </td>
         <td>
           {% if item.ley_au and item.ley_ag %}
-          <div class="link-list">
-            <a href="/print/reporte-analisis/{{ entrega.id }}/{{ item.id }}" target="_blank">Reporte</a>
-            <a href="/print/reporte-analisis/{{ entrega.id }}/{{ item.id }}?download=1">Descargar</a>
+          <div class="row-actions">
+            <a class="icon-action" href="/print/reporte-analisis/{{ entrega.id }}/{{ item.id }}" target="_blank" data-tooltip="Ver reporte de analisis" aria-label="Ver reporte de analisis">Ver</a>
+            <a class="icon-action primary" href="/print/reporte-analisis/{{ entrega.id }}/{{ item.id }}?download=1" data-tooltip="Descargar reporte de analisis en PDF" aria-label="Descargar reporte de analisis en PDF">PDF</a>
           </div>
           <form class="delete-inline-form mini" method="post" action="/leyes/eliminar">
             <input type="hidden" name="entrega_id" value="{{ entrega.id }}">
             <input type="hidden" name="item_id" value="{{ item.id }}">
-            <button class="link-button" type="submit">Limpiar</button>
+            <button class="link-button" type="submit" data-tooltip="Borrar leyes AU y AG de este registro">Limpiar</button>
           </form>
           {% endif %}
         </td>

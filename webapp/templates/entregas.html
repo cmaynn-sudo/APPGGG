@@ -10,7 +10,7 @@
     <p>Carpetas web e importadas desde CI GREEN GLOBAL.</p>
   </div>
   <div class="header-actions">
-    <a class="button" href="/documentos">Nueva entrega</a>
+    <a class="button" href="/documentos" data-tooltip="Crear una entrega web nueva">Nueva entrega</a>
   </div>
 </header>
 
@@ -23,7 +23,7 @@
     <form class="form-grid" method="post" action="/entregas/importar-carpeta" enctype="multipart/form-data" data-folder-upload-form>
       <label>Nombre de carpeta<input name="folder_name" placeholder="ENTREGA °6 - (2026-04-09)"></label>
       <label>Carpeta<input name="archivos" type="file" multiple webkitdirectory directory required data-folder-input></label>
-      <button class="button" type="submit">Subir carpeta</button>
+      <button class="button" type="submit" data-tooltip="Importar una carpeta local con todos sus archivos">Subir carpeta</button>
     </form>
     <p class="upload-status muted" data-upload-status></p>
   </div>
@@ -44,7 +44,7 @@
         <option value="loose" {% if source == "loose" %}selected{% endif %}>Archivos sueltos</option>
       </select>
     </label>
-    <button class="button button-secondary" type="submit">Filtrar</button>
+    <button class="button button-secondary" type="submit" data-tooltip="Aplicar busqueda y origen">Filtrar</button>
   </form>
   </div>
 </section>

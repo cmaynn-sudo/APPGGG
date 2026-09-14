@@ -10,8 +10,8 @@
     <p>{{ folder.year }} {{ folder.month }}{% if folder.date %} · {{ folder.date }}{% endif %}</p>
   </div>
   <div class="header-actions">
-    <a class="button button-secondary" href="/entregas">Carpetas</a>
-    <a class="button" href="{{ folder.zip_url }}">Descargar ZIP</a>
+    <a class="button button-secondary" href="/entregas" data-tooltip="Volver a la biblioteca de entregas">Carpetas</a>
+    <a class="button" href="{{ folder.zip_url }}" data-tooltip="Descargar la carpeta completa">Descargar ZIP</a>
   </div>
 </header>
 
@@ -25,7 +25,7 @@
       <input type="hidden" name="folder_source" value="{{ folder.source }}">
       <input type="hidden" name="folder_id" value="{{ folder.id }}">
       <label>Archivo<input name="archivo" type="file" required></label>
-      <button class="button" type="submit">Subir archivo</button>
+      <button class="button" type="submit" data-tooltip="Agregar archivo a esta carpeta">Subir archivo</button>
     </form>
   </div>
 
@@ -38,7 +38,7 @@
     <form class="form-grid" method="post" action="/entregas/eliminar">
       <input type="hidden" name="folder_source" value="{{ folder.source }}">
       <input type="hidden" name="folder_id" value="{{ folder.id }}">
-      <button class="button button-danger" type="submit">Eliminar</button>
+      <button class="button button-danger" type="submit" data-tooltip="Eliminar esta carpeta">Eliminar</button>
     </form>
   </div>
   {% endif %}
@@ -58,14 +58,14 @@
         <span>{{ doc.name }}{% if doc.size_label %} · {{ doc.size_label }}{% endif %}{% if doc.meta %} · {{ doc.meta }}{% endif %}</span>
       </div>
       <div class="row-actions">
-        <a href="{{ doc.view_url }}" target="_blank">Ver</a>
-        <a href="{{ doc.download_url }}">Descargar</a>
+        <a class="icon-action" href="{{ doc.view_url }}" target="_blank" data-tooltip="Ver archivo en pantalla" aria-label="Ver archivo">Ver</a>
+        <a class="icon-action primary" href="{{ doc.download_url }}" data-tooltip="Descargar archivo" aria-label="Descargar archivo">Descargar</a>
         {% if doc.deletable %}
         <form class="delete-inline-form mini" method="post" action="/archivos/eliminar">
           <input type="hidden" name="kind" value="{{ doc.kind }}">
           <input type="hidden" name="file_id" value="{{ doc.id }}">
           <input type="hidden" name="next" value="{{ next_url }}">
-          <button class="link-button" type="submit">Eliminar</button>
+          <button class="link-button" type="submit" data-tooltip="Eliminar este archivo">Eliminar</button>
         </form>
         {% endif %}
       </div>

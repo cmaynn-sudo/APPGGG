@@ -233,6 +233,8 @@ SAMPLE_CONTEXT = {
     "dolar": "4010.25",
     "oz_au": "2340.10",
     "oz_ag": "27.85",
+    "precio_negociacion_porcentaje": "97,50%",
+    "retencion_porcentaje": "2,50%",
     "mes": "AGOSTO",
     "preliminares": [
         {

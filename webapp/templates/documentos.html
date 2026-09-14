@@ -31,8 +31,8 @@
     {% if entrega %}
     <p class="muted">{{ entrega.year }} / {{ entrega.month }} / {{ entrega.fecha }}</p>
     <div class="action-row">
-      <a class="button" href="/print/preliminares/{{ entrega.id }}" target="_blank">Preliminares</a>
-      <a class="button button-secondary" href="/entregas/web/{{ entrega.id }}">Abrir carpeta</a>
+      <a class="button" href="/print/preliminares/{{ entrega.id }}" target="_blank" data-tooltip="Ver preliminares en pantalla">Preliminares</a>
+      <a class="button button-secondary" href="/entregas/web/{{ entrega.id }}" data-tooltip="Abrir carpeta de esta entrega">Abrir carpeta</a>
     </div>
     {% else %}
     <p class="muted">Crea una entrega para empezar.</p>
@@ -55,7 +55,7 @@
         {% endfor %}
       </select>
     </label>
-    <button class="button button-secondary" type="submit">Usar entrega</button>
+    <button class="button button-secondary" type="submit" data-tooltip="Cambiar la entrega activa">Usar entrega</button>
   </form>
 </section>
 {% endif %}
@@ -79,7 +79,7 @@
     <label>Peso inicial<input name="peso_inicial" required inputmode="decimal"></label>
     <label>Peso post fundicion<input name="peso_post" required inputmode="decimal"></label>
     <label>Muestras<input name="muestras" inputmode="decimal" value="0"></label>
-    <button class="button" type="submit">Agregar</button>
+    <button class="button" type="submit" data-tooltip="Agregar sociedad a esta entrega">Agregar</button>
   </form>
 </section>
 
@@ -113,12 +113,12 @@
         <td>{{ item.porcentaje_merma }}</td>
         <td>{{ item.muestras }}</td>
         <td>{{ item.peso_final }}</td>
-        <td class="link-list">
-          <a href="/print/recibo/{{ entrega.id }}/{{ item.id }}" target="_blank">Recibo</a>
-          <a href="/print/recibo/{{ entrega.id }}/{{ item.id }}?download=1">Descargar</a>
+        <td class="row-actions">
+          <a class="icon-action" href="/print/recibo/{{ entrega.id }}/{{ item.id }}" target="_blank" data-tooltip="Ver recibo en pantalla" aria-label="Ver recibo">Ver</a>
+          <a class="icon-action primary" href="/print/recibo/{{ entrega.id }}/{{ item.id }}?download=1" data-tooltip="Descargar recibo en PDF" aria-label="Descargar recibo en PDF">PDF</a>
           {% if item.ley_au and item.ley_ag %}
-          <a href="/print/reporte-analisis/{{ entrega.id }}/{{ item.id }}" target="_blank">Leyes</a>
-          <a href="/print/boletin/{{ entrega.id }}/{{ item.id }}" target="_blank">Boletin</a>
+          <a class="icon-action" href="/print/reporte-analisis/{{ entrega.id }}/{{ item.id }}" target="_blank" data-tooltip="Ver reporte de leyes" aria-label="Ver reporte de leyes">Leyes</a>
+          <a class="icon-action" href="/print/boletin/{{ entrega.id }}/{{ item.id }}" target="_blank" data-tooltip="Ver boletin" aria-label="Ver boletin">Boletin</a>
           {% endif %}
         </td>
       </tr>
@@ -132,13 +132,13 @@
             <label>Peso post<input name="peso_post" value="{{ item.peso_post }}" inputmode="decimal" required></label>
             <label>Muestras<input name="muestras" value="{{ item.muestras }}" inputmode="decimal"></label>
             <label>Ley estimada<input name="ley_estimada" value="{{ item.ley_estimada }}" inputmode="decimal"></label>
-            <button class="button button-secondary" type="submit">Actualizar</button>
+            <button class="button button-secondary" type="submit" data-tooltip="Guardar cambios del registro">Actualizar</button>
           </form>
           <form class="delete-inline-form" method="post" action="/documentos/eliminar-item">
             <input type="hidden" name="next" value="/documentos">
             <input type="hidden" name="entrega_id" value="{{ entrega.id }}">
             <input type="hidden" name="item_id" value="{{ item.id }}">
-            <button class="link-button" type="submit">Eliminar registro</button>
+            <button class="link-button" type="submit" data-tooltip="Eliminar esta sociedad de la entrega">Eliminar registro</button>
           </form>
         </td>
       </tr>
@@ -162,8 +162,8 @@
         <span>{{ doc.category }} · {{ doc.meta }}</span>
       </div>
       <div class="row-actions">
-        <a href="{{ doc.view_url }}" target="_blank">Ver</a>
-        <a href="{{ doc.download_url }}">Descargar</a>
+        <a class="icon-action" href="{{ doc.view_url }}" target="_blank" data-tooltip="Ver documento en pantalla" aria-label="Ver documento">Ver</a>
+        <a class="icon-action primary" href="{{ doc.download_url }}" data-tooltip="Descargar documento en PDF" aria-label="Descargar documento en PDF">PDF</a>
       </div>
     </article>
     {% else %}

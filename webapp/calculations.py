@@ -19,6 +19,11 @@ def as_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
+def as_percent_rate(value: Any, default_percent: float) -> float:
+    number = as_float(value, default_percent)
+    return number if abs(number) <= 1 else number / 100
+
+
 def excel_round(value: float, places: int = 0) -> float:
     quant = Decimal("1") if places == 0 else Decimal("1").scaleb(-places)
     rounded = Decimal(str(value)).quantize(quant, rounding=ROUND_HALF_UP)
@@ -152,8 +157,15 @@ def reporte_analisis_context(raw: dict[str, Any], current: date | None = None) -
     return data
 
 
-def boletin_context(raw: dict[str, Any], parametros: dict[str, Any], regalias: dict[str, Any], current: date | None = None) -> dict[str, Any]:
+def boletin_context(
+    raw: dict[str, Any],
+    parametros: dict[str, Any],
+    regalias: dict[str, Any],
+    settings: dict[str, Any] | None = None,
+    current: date | None = None,
+) -> dict[str, Any]:
     current = current or date.today()
+    settings = settings or {}
     peso_ini = as_float(raw.get("peso_ini", raw.get("peso_inicial")))
     peso_fin = as_float(raw.get("peso_fin", raw.get("peso_final", raw.get("peso_post"))))
     ley_au = as_float(raw.get("ley_au"))
@@ -164,17 +176,19 @@ def boletin_context(raw: dict[str, Any], parametros: dict[str, Any], regalias: d
     regalia_au = as_float(regalias.get("au"))
     regalia_ag = as_float(regalias.get("ag"))
     mes_regalias = (parametros.get("mes_regalias") or regalias.get("mes") or MESES_ES[current.month]).strip().upper()
+    precio_negociacion_rate = as_percent_rate(settings.get("precio_negociacion_porcentaje"), 97.5)
+    retencion_rate = as_percent_rate(settings.get("retencion_porcentaje"), 2.5)
 
     perdida = peso_ini - peso_fin
     porcentaje_perdida = perdida / peso_ini if peso_ini else ""
     fino_oro = excel_round(peso_fin * ley_au / 1000, 2)
     fino_plata = excel_round(peso_fin * ley_ag / 1000, 2)
-    precio_oro = excel_round(((oz_au / 31.10347) * dolar) * 0.975, 0)
+    precio_oro = excel_round(((oz_au / 31.10347) * dolar) * precio_negociacion_rate, 0)
     precio_plata = excel_round(((oz_ag / 31.10347) * dolar) / 2, 0)
     valor_oro = fino_oro * precio_oro
     valor_plata = fino_plata * precio_plata
     valor_total = valor_oro + valor_plata
-    retefuente = valor_total * -0.025
+    retefuente = valor_total * -retencion_rate
     valor_pagar = valor_total + retefuente
     regalia_oro_4 = regalia_au * 0.04
     regalia_plata_4 = regalia_ag * 0.04
@@ -197,6 +211,8 @@ def boletin_context(raw: dict[str, Any], parametros: dict[str, Any], regalias: d
             "dolar": fmt_money(dolar),
             "oz_au": fmt_money(oz_au),
             "oz_ag": fmt_money(oz_ag),
+            "precio_negociacion_porcentaje": fmt_percent(precio_negociacion_rate),
+            "retencion_porcentaje": fmt_percent(retencion_rate),
             "perdida": fmt_number(perdida),
             "porcentaje_perdida": fmt_percent(porcentaje_perdida) if porcentaje_perdida != "" else "",
             "fino_oro": fmt_number(fino_oro),
