@@ -44,14 +44,14 @@
         <option value="loose" {% if source == "loose" %}selected{% endif %}>Archivos sueltos</option>
       </select>
     </label>
-    <button class="button button-secondary" type="submit" data-tooltip="Aplicar busqueda y origen">Filtrar</button>
+    <button class="button button-secondary" type="submit" data-tooltip="Aplicar búsqueda y origen">Filtrar</button>
   </form>
   </div>
 </section>
 
 <section class="panel section-gap">
   {% if exported_at %}
-  <p class="muted">Importacion local actualizada: {{ exported_at }}</p>
+  <p class="muted">Importación local actualizada: {{ exported_at }}</p>
   {% else %}
   <p class="muted">Las carpetas subidas desde esta pantalla quedan disponibles en esta biblioteca.</p>
   {% endif %}

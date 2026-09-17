@@ -24,7 +24,8 @@
   line-height: 1.15;
   min-width: 0;
   overflow: hidden;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .excel-sheet .excel-field {
@@ -33,6 +34,17 @@
   position: relative;
   white-space: nowrap !important;
   z-index: 3;
+}
+
+.print-recibo-metales .excel-sheet tr:nth-child(48) td:nth-child(1),
+.print-recibo-metales .excel-sheet tr:nth-child(48) td:nth-child(9),
+.print-recibo-metales .excel-sheet tr:nth-child(49) td:nth-child(1),
+.print-recibo-metales .excel-sheet tr:nth-child(49) td:nth-child(9),
+.print-recibo-metales .excel-sheet tr:nth-child(50) td:nth-child(1) {
+  overflow: visible;
+  overflow-wrap: normal;
+  white-space: nowrap !important;
+  word-break: normal;
 }
 
 .excel-image {
@@ -126,7 +138,9 @@
 }
 
 .liq-weights div {
-  display: grid;
+  align-items: center;
+  display: flex;
+  flex-direction: column;
   gap: 0.08in;
 }
 
@@ -134,12 +148,11 @@
   font-size: 10pt;
 }
 
-.liq-weights div:last-child {
-  grid-template-columns: 1fr 1fr;
-}
-
-.liq-weights div:last-child span {
-  grid-column: 1 / -1;
+.liq-loss-values {
+  display: flex;
+  gap: 0.22in;
+  justify-content: center;
+  width: 100%;
 }
 
 .liq-columns {

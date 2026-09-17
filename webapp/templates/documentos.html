@@ -1,11 +1,12 @@
 {% extends "base.html" %}
+{% import "icons.html" as icons %}
 
 {% block title %}Documentos{% endblock %}
 
 {% block content %}
 <header class="page-header">
   <div>
-    <p class="eyebrow">Modulo</p>
+    <p class="eyebrow">Módulo</p>
     <h1>Documentos</h1>
     <p>Entrega, recibos de metales y preliminares.</p>
   </div>
@@ -15,10 +16,10 @@
   <div class="panel">
     <div class="panel-title">
       <h2>Crear entrega</h2>
-      <span>Carpeta logica por año y mes</span>
+      <span>Carpeta lógica por año y mes</span>
     </div>
     <form class="form-grid" method="post" action="/documentos/crear">
-      <label>Numero de entrega<input name="numero" required></label>
+      <label>Número de entrega<input name="numero" required></label>
       <button class="button" type="submit">Guardar entrega</button>
     </form>
   </div>
@@ -77,7 +78,7 @@
       </select>
     </label>
     <label>Peso inicial<input name="peso_inicial" required inputmode="decimal"></label>
-    <label>Peso post fundicion<input name="peso_post" required inputmode="decimal"></label>
+    <label>Peso post fundición<input name="peso_post" required inputmode="decimal"></label>
     <label>Muestras<input name="muestras" inputmode="decimal" value="0"></label>
     <button class="button" type="submit" data-tooltip="Agregar sociedad a esta entrega">Agregar</button>
   </form>
@@ -92,7 +93,7 @@
     <thead>
       <tr>
         <th>Proveedor</th>
-        <th>Codigo</th>
+        <th>Código</th>
         <th>Peso inicial</th>
         <th>Peso post</th>
         <th>Merma</th>
@@ -114,11 +115,11 @@
         <td>{{ item.muestras }}</td>
         <td>{{ item.peso_final }}</td>
         <td class="row-actions">
-          <a class="icon-action" href="/print/recibo/{{ entrega.id }}/{{ item.id }}" target="_blank" data-tooltip="Ver recibo en pantalla" aria-label="Ver recibo">Ver</a>
-          <a class="icon-action primary" href="/print/recibo/{{ entrega.id }}/{{ item.id }}?download=1" data-tooltip="Descargar recibo en PDF" aria-label="Descargar recibo en PDF">PDF</a>
+          <a class="icon-action" href="/print/recibo/{{ entrega.id }}/{{ item.id }}" target="_blank" data-tooltip="Ver recibo en pantalla" aria-label="Ver recibo">{{ icons.icon("eye") }}</a>
+          <a class="icon-action primary" href="/print/recibo/{{ entrega.id }}/{{ item.id }}?download=1" data-tooltip="Descargar recibo en PDF" aria-label="Descargar recibo en PDF">{{ icons.icon("download") }}</a>
           {% if item.ley_au and item.ley_ag %}
-          <a class="icon-action" href="/print/reporte-analisis/{{ entrega.id }}/{{ item.id }}" target="_blank" data-tooltip="Ver reporte de leyes" aria-label="Ver reporte de leyes">Leyes</a>
-          <a class="icon-action" href="/print/boletin/{{ entrega.id }}/{{ item.id }}" target="_blank" data-tooltip="Ver boletin" aria-label="Ver boletin">Boletin</a>
+          <a class="icon-action" href="/print/reporte-analisis/{{ entrega.id }}/{{ item.id }}" target="_blank" data-tooltip="Ver reporte de leyes" aria-label="Ver reporte de leyes">{{ icons.icon("file-search") }}</a>
+          <a class="icon-action" href="/print/boletin/{{ entrega.id }}/{{ item.id }}" target="_blank" data-tooltip="Ver boletín" aria-label="Ver boletín">{{ icons.icon("file-text") }}</a>
           {% endif %}
         </td>
       </tr>
@@ -143,7 +144,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="9">Aun no hay sociedades en esta entrega.</td></tr>
+      <tr><td colspan="9">Aún no hay sociedades en esta entrega.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -162,8 +163,8 @@
         <span>{{ doc.category }} · {{ doc.meta }}</span>
       </div>
       <div class="row-actions">
-        <a class="icon-action" href="{{ doc.view_url }}" target="_blank" data-tooltip="Ver documento en pantalla" aria-label="Ver documento">Ver</a>
-        <a class="icon-action primary" href="{{ doc.download_url }}" data-tooltip="Descargar documento en PDF" aria-label="Descargar documento en PDF">PDF</a>
+        <a class="icon-action" href="{{ doc.view_url }}" target="_blank" data-tooltip="Ver documento en pantalla" aria-label="Ver documento">{{ icons.icon("eye") }}</a>
+        <a class="icon-action primary" href="{{ doc.download_url }}" data-tooltip="Descargar documento en PDF" aria-label="Descargar documento en PDF">{{ icons.icon("download") }}</a>
       </div>
     </article>
     {% else %}

@@ -1,11 +1,12 @@
 {% extends "base.html" %}
+{% import "icons.html" as icons %}
 
 {% block title %}Leyes{% endblock %}
 
 {% block content %}
 <header class="page-header">
   <div>
-    <p class="eyebrow">Modulo</p>
+    <p class="eyebrow">Módulo</p>
     <h1>Reporte de leyes</h1>
     <p>Registro AU/AG por sociedad.</p>
   </div>
@@ -19,7 +20,7 @@
 <section class="panel">
   <div class="panel-title">
     <h2>{{ entrega.name if entrega else "Sin entrega activa" }}</h2>
-    <span>Genera reportes de analisis</span>
+    <span>Genera reportes de análisis</span>
   </div>
   {% if entrega %}
   <table class="data-table">
@@ -31,7 +32,7 @@
         <th>Peso final</th>
         <th>Ley AU</th>
         <th>Ley AG</th>
-        <th>Accion</th>
+        <th>Acciones</th>
       </tr>
     </thead>
     <tbody>
@@ -53,8 +54,8 @@
         <td>
           {% if item.ley_au and item.ley_ag %}
           <div class="row-actions">
-            <a class="icon-action" href="/print/reporte-analisis/{{ entrega.id }}/{{ item.id }}" target="_blank" data-tooltip="Ver reporte de analisis" aria-label="Ver reporte de analisis">Ver</a>
-            <a class="icon-action primary" href="/print/reporte-analisis/{{ entrega.id }}/{{ item.id }}?download=1" data-tooltip="Descargar reporte de analisis en PDF" aria-label="Descargar reporte de analisis en PDF">PDF</a>
+            <a class="icon-action" href="/print/reporte-analisis/{{ entrega.id }}/{{ item.id }}" target="_blank" data-tooltip="Ver reporte de análisis" aria-label="Ver reporte de análisis">{{ icons.icon("eye") }}</a>
+            <a class="icon-action primary" href="/print/reporte-analisis/{{ entrega.id }}/{{ item.id }}?download=1" data-tooltip="Descargar reporte de análisis en PDF" aria-label="Descargar reporte de análisis en PDF">{{ icons.icon("download") }}</a>
           </div>
           <form class="delete-inline-form mini" method="post" action="/leyes/eliminar">
             <input type="hidden" name="entrega_id" value="{{ entrega.id }}">

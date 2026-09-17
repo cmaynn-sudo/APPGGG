@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 
-{% block title %}Parametros{% endblock %}
+{% block title %}Parámetros{% endblock %}
 
 {% block content %}
 <header class="page-header">
   <div>
-    <p class="eyebrow">Configuracion</p>
-    <h1>Parametros de boletines</h1>
-    <p>Porcentajes globales usados al liquidar cada boletin.</p>
+    <p class="eyebrow">Configuración</p>
+    <h1>Parámetros de boletines</h1>
+    <p>Porcentajes globales usados al liquidar cada boletín.</p>
   </div>
   <div class="header-actions">
     <a class="button button-secondary" href="/boletines" data-tooltip="Volver a los boletines activos">Boletines</a>
@@ -17,16 +17,16 @@
 <section class="work-grid">
   <form class="panel" method="post" action="/parametros/boletines">
     <div class="panel-title">
-      <h2>Formula de liquidacion</h2>
+      <h2>Fórmula de liquidación</h2>
       <span>Editable</span>
     </div>
-    <label>Precio de negociacion (%)
+    <label>Precio de negociación (%)
       <input name="precio_negociacion_porcentaje" value="{{ settings.precio_negociacion_porcentaje }}" inputmode="decimal" required>
     </label>
-    <label>Retencion (%)
+    <label>Retención (%)
       <input name="retencion_porcentaje" value="{{ settings.retencion_porcentaje }}" inputmode="decimal" required>
     </label>
-    <button class="button section-gap" type="submit" data-tooltip="Guardar porcentajes para los proximos boletines">Guardar parametros</button>
+    <button class="button section-gap" type="submit" data-tooltip="Guardar porcentajes para los próximos boletines">Guardar parámetros</button>
   </form>
 
   <div class="panel">
@@ -36,15 +36,15 @@
     </div>
     <div class="setting-list">
       <div>
-        <span>Precio de negociacion</span>
+        <span>Precio de negociación</span>
         <strong>{{ settings.precio_negociacion_porcentaje }}%</strong>
       </div>
       <div>
-        <span>Retencion</span>
+        <span>Retención</span>
         <strong>{{ settings.retencion_porcentaje }}%</strong>
       </div>
     </div>
-    <p class="muted">La formula mantiene el mismo redondeo de Excel. Puedes escribir 97,5 o 97.5.</p>
+    <p class="muted">La fórmula mantiene el mismo redondeo de Excel. Puedes escribir 97,5 o 97.5.</p>
   </div>
 </section>
 {% endblock %}

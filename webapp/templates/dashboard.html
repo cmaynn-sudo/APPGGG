@@ -1,17 +1,17 @@
 {% extends "base.html" %}
 
-{% block title %}Panel de recepcion{% endblock %}
+{% block title %}Panel de recepción{% endblock %}
 
 {% block content %}
 <header class="page-header">
   <div>
     <p class="eyebrow">Sistema documental</p>
-    <h1>Recepcion y liquidacion</h1>
+    <h1>Recepción y liquidación</h1>
     <p>Documentos web, ventas importadas y plantillas listas para imprimir.</p>
   </div>
   <div class="header-metrics">
     <div><span>{{ sociedades|length }}</span><small>Sociedades</small></div>
-    <div><span>{{ regalias|length }}</span><small>Meses de regalias</small></div>
+    <div><span>{{ regalias|length }}</span><small>Meses de regalías</small></div>
     <div><span>{{ document_folders|length }}</span><small>Carpetas</small></div>
   </div>
 </header>
@@ -25,10 +25,10 @@
     <div class="flow">
       <a class="flow-step" href="/documentos"><span>1</span><strong>Documentos</strong><small>Entrega, recibos y preliminares</small></a>
       <a class="flow-step" href="/leyes"><span>2</span><strong>Leyes</strong><small>Registro AU/AG y reporte</small></a>
-      <a class="flow-step" href="/boletines"><span>3</span><strong>Boletines</strong><small>Liquidacion y cierre</small></a>
+      <a class="flow-step" href="/boletines"><span>3</span><strong>Boletines</strong><small>Liquidación y cierre</small></a>
       <a class="flow-step" href="/entregas"><span>4</span><strong>Entregas</strong><small>Carpetas, PDFs y descargas</small></a>
-      <a class="flow-step" href="/regalias"><span>5</span><strong>Regalias</strong><small>Actualizacion mensual</small></a>
-      <a class="flow-step" href="/parametros"><span>6</span><strong>Parametros</strong><small>Retencion y negociacion</small></a>
+      <a class="flow-step" href="/regalias"><span>5</span><strong>Regalías</strong><small>Actualización mensual</small></a>
+      <a class="flow-step" href="/parametros"><span>6</span><strong>Parámetros</strong><small>Retención y negociación</small></a>
     </div>
   </div>
 
@@ -40,16 +40,16 @@
     {% if backup_status.enabled %}
     <p class="muted">GitHub · {{ backup_status.repo }} · {{ backup_status.branch }}</p>
     {% if backup_status.last_backup_at %}
-    <p class="muted">Ultimo guardado: {{ backup_status.last_backup_at }}</p>
+    <p class="muted">Último guardado: {{ backup_status.last_backup_at }}</p>
     {% endif %}
     {% else %}
-    <p class="muted">Configura GITHUB_BACKUP_TOKEN en Render para conservar cambios despues de reinicios y deploys.</p>
+    <p class="muted">Configura GITHUB_BACKUP_TOKEN en Render para conservar cambios después de reinicios y deploys.</p>
     {% endif %}
     {% if backup_status.last_backup_error or backup_status.last_restore_error %}
     <p class="form-error">{{ backup_status.last_backup_error or backup_status.last_restore_error }}</p>
     {% endif %}
     <div class="inline-actions">
-      <a class="button button-small" href="/respaldo" data-tooltip="Abrir modulo de respaldo">Abrir respaldo</a>
+      <a class="button button-small" href="/respaldo" data-tooltip="Abrir módulo de respaldo">Abrir respaldo</a>
       <a class="button button-small button-ghost" href="/respaldo/descargar" data-tooltip="Descargar respaldo completo">Descargar ZIP</a>
     </div>
   </div>
@@ -76,7 +76,7 @@
         </tr>
         {% else %}
         <tr>
-          <td colspan="3">No hay entregas web todavia.</td>
+          <td colspan="3">No hay entregas web todavía.</td>
         </tr>
         {% endfor %}
       </tbody>

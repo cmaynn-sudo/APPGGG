@@ -156,6 +156,31 @@ nav a:hover,
   padding: 28px;
 }
 
+.top-session {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
+.top-session-user {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: right;
+}
+
+.top-session-user strong,
+.top-session-user span {
+  display: block;
+}
+
+.top-session-user strong {
+  color: var(--ink);
+  font-size: 14px;
+  margin-top: 2px;
+}
+
 .public-page {
   min-height: 100vh;
   padding: 24px;
@@ -647,8 +672,8 @@ label {
   font-weight: 700;
   justify-content: center;
   min-height: 34px;
-  min-width: 48px;
-  padding: 7px 10px;
+  min-width: 38px;
+  padding: 7px;
 }
 
 .icon-action:hover,
@@ -669,6 +694,43 @@ label {
   background: var(--accent-2);
   border-color: var(--accent-2);
   color: #fff;
+}
+
+.icon-action.danger {
+  color: var(--danger);
+}
+
+.icon-action.danger:hover,
+.icon-action.danger:focus-visible {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.icon-action.button-icon {
+  border: 1px solid var(--line);
+}
+
+.action-icon-svg {
+  fill: none;
+  height: 18px;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  width: 18px;
+}
+
+.sr-only {
+  border: 0;
+  clip: rect(0, 0, 0, 0);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
 }
 
 .setting-list {
@@ -794,6 +856,22 @@ label {
   color: var(--danger);
 }
 
+.notice.warning {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+}
+
+.backup-warning {
+  line-height: 1.35;
+}
+
+html[data-theme="dark"] .notice.warning {
+  background: #2f2418;
+  border-color: #7c4a1d;
+  color: #ffd7a3;
+}
+
 @media (max-width: 1120px) {
   .flow {
     grid-template-columns: repeat(2, minmax(160px, 1fr));
@@ -828,6 +906,10 @@ label {
   .page-header {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .top-session {
+    justify-content: space-between;
   }
 
   .document-row {

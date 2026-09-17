@@ -128,7 +128,7 @@ TEMPLATES: list[TemplateSpec] = [
     ),
     TemplateSpec(
         slug="reporte-analisis",
-        title="Reporte de analisis",
+        title="Reporte de análisis",
         workbook=PROJECT_DIR / "REPORTE DE ANALISIS.xlsx",
         preferred_sheet="Hoja1",
         current_script="LEYES.py",
@@ -152,11 +152,11 @@ TEMPLATES: list[TemplateSpec] = [
     ),
     TemplateSpec(
         slug="boletin",
-        title="Boletin",
+        title="Boletín",
         workbook=PROJECT_DIR / "REPORTE DE LIQUIDACION.xlsx",
         preferred_sheet="Hoja2",
         current_script="BOLETINES.py",
-        purpose="Liquidacion y cierre de venta por barra.",
+        purpose="Liquidación y cierre de venta por barra.",
         output_name="BOLETIN - {barra}.pdf",
         fields={
             "C16": "barra",
@@ -196,7 +196,7 @@ TEMPLATES: list[TemplateSpec] = [
     ),
     TemplateSpec(
         slug="certificado-regalias",
-        title="Certificado de regalias",
+        title="Certificado de regalías",
         workbook=PROJECT_DIR / "PAGO DE REGALIAS.xlsx",
         preferred_sheet="MES",
         current_script="PAGO DE REGALIAS.py",

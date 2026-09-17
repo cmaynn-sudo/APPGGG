@@ -74,14 +74,18 @@ def normalize_store(store: dict[str, Any], sync_backup: bool = True) -> dict[str
 
 
 def load_store() -> dict[str, Any]:
-    restore_status = persistence.restore_state_if_configured(DATA_DIR)
+    restore_status = persistence.restore_state_if_configured(
+        DATA_DIR,
+        force=persistence.should_restore_on_start(),
+    )
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     if not STORE_PATH.exists():
         save_store(_empty_store(), sync_backup=False)
         created_empty = True
     else:
         created_empty = False
-    return normalize_store(json.loads(STORE_PATH.read_text(encoding="utf-8")), sync_backup=not created_empty and restore_status != "failed")
+    should_sync_backup = not created_empty and restore_status not in {"failed", "remote-empty"}
+    return normalize_store(json.loads(STORE_PATH.read_text(encoding="utf-8")), sync_backup=should_sync_backup)
 
 
 def save_store(store: dict[str, Any], sync_backup: bool = True) -> None:
@@ -134,7 +138,7 @@ def normalize_percent_field(raw: str, fallback: str) -> str:
     try:
         number = core.parse_decimal_input(value)
     except ValueError as exc:
-        raise ValueError("El porcentaje debe ser numerico.") from exc
+        raise ValueError("El porcentaje debe ser numérico.") from exc
     if number < 0:
         raise ValueError("El porcentaje no puede ser negativo.")
     text = f"{number:.4f}".rstrip("0").rstrip(".")
@@ -143,7 +147,7 @@ def normalize_percent_field(raw: str, fallback: str) -> str:
 
 def create_entrega(numero: str) -> dict[str, Any]:
     if not numero.strip():
-        raise ValueError("Ingresa un numero de entrega.")
+        raise ValueError("Ingresa un número de entrega.")
     store = load_store()
     today = date.today()
     entrega = {
@@ -214,11 +218,11 @@ def add_entrega_item(form: dict[str, str]) -> dict[str, Any]:
     if not entrega:
         raise ValueError("Primero crea una entrega.")
     if len(entrega.get("items", [])) >= 8:
-        raise ValueError("La plantilla de preliminares permite maximo 8 sociedades por entrega.")
+        raise ValueError("La plantilla de preliminares permite máximo 8 sociedades por entrega.")
 
     sociedad = get_sociedad(store, form.get("proveedor", ""))
     if not sociedad:
-        raise ValueError("Selecciona una sociedad valida.")
+        raise ValueError("Selecciona una sociedad válida.")
 
     consecutivo = int(sociedad.get("consecutivo") or 0) + 1
     sociedad["consecutivo"] = consecutivo
@@ -348,7 +352,7 @@ def upsert_regalia(form: dict[str, str]) -> dict[str, Any]:
     if not mes:
         raise ValueError("Selecciona un mes.")
     if mes not in core.MESES_ORDEN:
-        raise ValueError("Mes invalido.")
+        raise ValueError("Mes inválido.")
 
     def parse_optional(name: str) -> float | None:
         raw = form.get(name, "").strip()
@@ -377,7 +381,7 @@ def delete_regalia(mes: str) -> None:
     store = load_store()
     regalias = store.get("regalias", [])
     if not any(row.get("mes", "").strip().upper() == target for row in regalias):
-        raise ValueError("Regalia no encontrada.")
+        raise ValueError("Regalía no encontrada.")
     store["regalias"] = [row for row in regalias if row.get("mes", "").strip().upper() != target]
     save_store(store)
 
@@ -394,7 +398,7 @@ def upsert_sociedad(form: dict[str, str]) -> dict[str, Any]:
     try:
         consecutivo = int(core.parse_decimal_input(consecutivo_raw))
     except ValueError as exc:
-        raise ValueError("El consecutivo debe ser numerico.") from exc
+        raise ValueError("El consecutivo debe ser numérico.") from exc
     row = {
         "sociedad": sociedad,
         "nit": form.get("nit", "").strip(),
@@ -583,7 +587,7 @@ def save_uploaded_file(
     sync_backup: bool = True,
 ) -> dict[str, Any]:
     if not content:
-        raise ValueError("El archivo esta vacio.")
+        raise ValueError("El archivo está vacío.")
     file_id = uuid.uuid4().hex
     clean_name = safe_filename(filename)
     folder_root = UPLOADS_DIR / folder_source / folder_id

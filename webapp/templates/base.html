@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}Recepcion{% endblock %}</title>
+    <title>{% block title %}Recepción{% endblock %}</title>
     <script>
       const savedTheme = localStorage.getItem("recepcion-theme") || "light";
       document.documentElement.dataset.theme = savedTheme;
@@ -19,7 +19,7 @@
         <img src="/static/generated/logo.png" alt="">
         <div>
           <strong>Green Global</strong>
-          <span>Recepcion</span>
+          <span>Recepción</span>
         </div>
       </div>
       <nav>
@@ -30,8 +30,8 @@
         <a href="/boletines">Boletines</a>
         <a href="/certificados">Certificados</a>
         <a href="/sociedades">Sociedades</a>
-        <a href="/regalias">Regalias</a>
-        <a href="/parametros">Parametros</a>
+        <a href="/regalias">Regalías</a>
+        <a href="/parametros">Parámetros</a>
         <a href="/respaldo">Respaldo</a>
       </nav>
       <div class="sidebar-footer">
@@ -41,7 +41,7 @@
           <span>{{ user.username }}</span>
           <strong>{{ user.role }}</strong>
         </div>
-        <a class="button button-ghost" href="/logout">Salir</a>
+        <a class="button button-ghost" href="/logout" data-tooltip="Cerrar la sesión actual">Cerrar sesión</a>
         {% else %}
         <a class="button" href="/login">Entrar</a>
         {% endif %}
@@ -49,6 +49,20 @@
     </aside>
     {% endif %}
     <main class="{% if public %}public-page{% else %}page{% endif %}">
+      {% if not public %}
+      <div class="top-session">
+        <div class="top-session-user">
+          <span>Sesión activa</span>
+          <strong>{{ user.username if user else "Usuario" }}</strong>
+        </div>
+        <a class="button button-small button-ghost" href="/logout" data-tooltip="Cerrar la sesión actual">Cerrar sesión</a>
+      </div>
+      {% if backup_status is defined and not backup_status.enabled %}
+      <div class="notice warning backup-warning">
+        Respaldo externo pendiente: configura GITHUB_BACKUP_TOKEN en Render para conservar los cambios después de reinicios y deploys.
+      </div>
+      {% endif %}
+      {% endif %}
       {% block content %}{% endblock %}
     </main>
   </body>

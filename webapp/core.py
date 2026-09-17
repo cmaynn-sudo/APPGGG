@@ -36,17 +36,17 @@ MESES_ORDEN = list(MESES_ES.values())
 def parse_decimal_input(value: str) -> float:
     s = str(value).strip()
     if not s:
-        raise ValueError("valor vacio")
+        raise ValueError("valor vacío")
     s = re.sub(r"[^0-9,\.\-]", "", s)
     if s in ("", "-", ",", "."):
-        raise ValueError("valor invalido")
+        raise ValueError("valor inválido")
 
     sign = ""
     if s.startswith("-"):
         sign = "-"
         s = s[1:]
     if "-" in s:
-        raise ValueError("valor invalido")
+        raise ValueError("valor inválido")
 
     if "," in s and "." in s:
         if s.rfind(",") > s.rfind("."):

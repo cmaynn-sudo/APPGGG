@@ -1,17 +1,18 @@
 {% extends "base.html" %}
+{% import "icons.html" as icons %}
 
 {% block title %}Boletines{% endblock %}
 
 {% block content %}
 <header class="page-header">
   <div>
-    <p class="eyebrow">Modulo</p>
+    <p class="eyebrow">Módulo</p>
     <h1>Boletines</h1>
-    <p>Liquidacion, cierre de venta y regalías.</p>
+    <p>Liquidación, cierre de venta y regalías.</p>
   </div>
   {% if entrega %}
   <div class="header-actions">
-    <a class="button button-secondary" href="/parametros" data-tooltip="Modificar retencion y precio de negociacion">Parametros</a>
+    <a class="button button-secondary" href="/parametros" data-tooltip="Modificar retención y precio de negociación">Parámetros</a>
     <a class="button button-secondary" href="/entregas/web/{{ entrega.id }}" data-tooltip="Abrir carpeta de esta entrega">Abrir carpeta</a>
   </div>
   {% endif %}
@@ -20,7 +21,7 @@
 {% if entrega %}
 <section class="panel">
   <div class="panel-title">
-    <h2>Parametros</h2>
+    <h2>Parámetros</h2>
     <span>{{ entrega.name }}</span>
   </div>
   <form class="form-grid form-grid-wide" method="post" action="/boletines/parametros">
@@ -32,14 +33,14 @@
         {% endfor %}
       </select>
     </label>
-    <label>Dolar<input name="dolar" value="{{ entrega['parametros']['dolar'] }}" inputmode="decimal"></label>
+    <label>Dólar<input name="dolar" value="{{ entrega['parametros']['dolar'] }}" inputmode="decimal"></label>
     <label>OZ AU<input name="oz_au" value="{{ entrega['parametros']['oz_au'] }}" inputmode="decimal"></label>
     <label>OZ AG<input name="oz_ag" value="{{ entrega['parametros']['oz_ag'] }}" inputmode="decimal"></label>
-    <button class="button" type="submit" data-tooltip="Guardar mes, dolar y onzas de esta entrega">Guardar parametros</button>
+    <button class="button" type="submit" data-tooltip="Guardar mes, dólar y onzas de esta entrega">Guardar parámetros</button>
   </form>
   <form class="delete-inline-form section-gap" method="post" action="/boletines/parametros/eliminar">
     <input type="hidden" name="entrega_id" value="{{ entrega.id }}">
-    <button class="link-button" type="submit" data-tooltip="Vaciar los parametros de esta entrega">Limpiar parametros</button>
+    <button class="link-button" type="submit" data-tooltip="Vaciar los parámetros de esta entrega">Limpiar parámetros</button>
   </form>
 </section>
 
@@ -68,8 +69,8 @@
         <td>{{ item.fino_plata }}</td>
         <td>{{ item.valor_transferir }}</td>
         <td class="row-actions">
-          <a class="icon-action" href="/print/boletin/{{ entrega.id }}/{{ item.id }}" target="_blank" data-tooltip="Ver boletin en pantalla" aria-label="Ver boletin">Ver</a>
-          <a class="icon-action primary" href="/print/boletin/{{ entrega.id }}/{{ item.id }}?download=1" data-tooltip="Descargar boletin en PDF" aria-label="Descargar boletin en PDF">PDF</a>
+          <a class="icon-action" href="/print/boletin/{{ entrega.id }}/{{ item.id }}" target="_blank" data-tooltip="Ver boletín en pantalla" aria-label="Ver boletín">{{ icons.icon("eye") }}</a>
+          <a class="icon-action primary" href="/print/boletin/{{ entrega.id }}/{{ item.id }}?download=1" data-tooltip="Descargar boletín en PDF" aria-label="Descargar boletín en PDF">{{ icons.icon("download") }}</a>
         </td>
       </tr>
       {% else %}

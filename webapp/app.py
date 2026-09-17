@@ -367,7 +367,7 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             if not group:
                 self.send_error(HTTPStatus.NOT_FOUND, "Certificado no encontrado")
                 return
-            filename = f"CERTIFICADO DE REGALIAS {group['sociedad']} - {month}.pdf"
+            filename = f"CERTIFICADO DE REGALÍAS {group['sociedad']} - {month}.pdf"
             self.send_print(
                 "certificado-regalias",
                 calculations.certificado_context(group["sociedad"], group["nit"], group["boletines"]),
@@ -464,7 +464,7 @@ class RecepcionHandler(BaseHTTPRequestHandler):
         source = fields.get("folder_source", "")
         folder_id = fields.get("folder_id", "")
         if source not in {"web", "imported", "local"}:
-            raise ValueError("Carpeta invalida.")
+            raise ValueError("Carpeta inválida.")
         if source == "web" and not data_store.get_entrega(folder_id):
             raise ValueError("Entrega web no encontrada.")
         if source == "imported" and not document_library.imported_delivery(folder_id):
@@ -494,7 +494,7 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 raise ValueError("Entrega importada no encontrada.")
             data_store.delete_uploaded_files_for("imported", folder_id)
         else:
-            raise ValueError("Carpeta invalida.")
+            raise ValueError("Carpeta inválida.")
         self.redirect("/entregas")
 
     def delete_file(self, form: dict[str, str]) -> None:
@@ -506,13 +506,13 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             if not document_library.remove_imported_file(file_id):
                 raise ValueError("Archivo importado no encontrado.")
         else:
-            raise ValueError("Archivo invalido.")
+            raise ValueError("Archivo inválido.")
         self.redirect(form.get("next", "/entregas") or "/entregas")
 
     def download_state_backup(self) -> None:
         archive = persistence.build_backup_archive(data_store.DATA_DIR)
         if not archive:
-            self.render_error("Todavia no hay datos para respaldar.")
+            self.render_error("Todavía no hay datos para respaldar.")
             return
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         self.send_bytes(
@@ -640,6 +640,8 @@ class RecepcionHandler(BaseHTTPRequestHandler):
         payload = dict(context)
         payload.setdefault("public", public)
         payload.setdefault("user", None if public else self.current_user())
+        if not public:
+            payload.setdefault("backup_status", persistence.runtime_status(data_store.DATA_DIR))
         payload.setdefault("request_path", self.path)
         payload.setdefault("app_version", self.server_version)
         body = env.get_template(template_name).render(**payload).encode("utf-8")
@@ -666,7 +668,7 @@ class RecepcionHandler(BaseHTTPRequestHandler):
     def read_form(self) -> dict[str, str]:
         length = int(self.headers.get("Content-Length", "0"))
         if length > MAX_UPLOAD_BYTES:
-            raise ValueError("La solicitud supera el tamaño maximo permitido.")
+            raise ValueError("La solicitud supera el tamaño máximo permitido.")
         body = self.rfile.read(length).decode("utf-8")
         return {key: values[0] for key, values in parse_qs(body, keep_blank_values=True).items()}
 
@@ -674,11 +676,11 @@ class RecepcionHandler(BaseHTTPRequestHandler):
         content_type = self.headers.get("Content-Type", "")
         match = re.search(r"boundary=(?:\"([^\"]+)\"|([^;]+))", content_type)
         if not match:
-            raise ValueError("Formulario de archivos invalido.")
+            raise ValueError("Formulario de archivos inválido.")
         boundary = (match.group(1) or match.group(2)).encode("utf-8")
         length = int(self.headers.get("Content-Length", "0"))
         if length > MAX_UPLOAD_BYTES:
-            raise ValueError("El archivo supera el tamaño maximo permitido.")
+            raise ValueError("El archivo supera el tamaño máximo permitido.")
         body = self.rfile.read(length)
         fields: dict[str, str] = {}
         files: list[dict[str, object]] = []
@@ -754,7 +756,7 @@ class RecepcionHandler(BaseHTTPRequestHandler):
 
 def main() -> None:
     default_host = os.environ.get("HOST") or ("0.0.0.0" if os.environ.get("PORT") else "127.0.0.1")
-    parser = argparse.ArgumentParser(description="Recepcion web local")
+    parser = argparse.ArgumentParser(description="Recepción web local")
     parser.add_argument("--host", default=default_host)
     parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8765")))
     parser.add_argument("--no-refresh-templates", action="store_true")
@@ -765,7 +767,7 @@ def main() -> None:
 
     httpd = ThreadingHTTPServer((args.host, args.port), RecepcionHandler)
     url = f"http://{args.host}:{args.port}"
-    print(f"Recepcion web disponible en {url}")
+    print(f"Recepción web disponible en {url}")
     httpd.serve_forever()
 
 

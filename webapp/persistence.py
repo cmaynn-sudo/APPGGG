@@ -40,6 +40,13 @@ def is_configured() -> bool:
     return bool(cfg["repo"] and cfg["token"])
 
 
+def should_restore_on_start() -> bool:
+    raw = os.environ.get("GITHUB_BACKUP_RESTORE_ON_START")
+    if raw is not None:
+        return raw.strip().lower() in {"1", "true", "yes", "si", "on"}
+    return os.environ.get("RENDER", "").strip().lower() == "true"
+
+
 def runtime_status(data_dir: Path | None = None) -> dict[str, Any]:
     cfg = config()
     status = {
@@ -47,6 +54,7 @@ def runtime_status(data_dir: Path | None = None) -> dict[str, Any]:
         "repo": cfg["repo"],
         "branch": cfg["branch"],
         "path": cfg["path"],
+        "restore_on_start": should_restore_on_start(),
         "last_backup_at": LAST_BACKUP_AT,
         "last_restore_at": LAST_RESTORE_AT,
         "last_backup_error": LAST_BACKUP_ERROR,
@@ -58,11 +66,12 @@ def runtime_status(data_dir: Path | None = None) -> dict[str, Any]:
     return status
 
 
-def restore_state_if_configured(data_dir: Path, force: bool = False) -> str:
+def restore_state_if_configured(data_dir: Path, force: bool = False, once: bool = True) -> str:
     global RESTORE_ONCE, LAST_RESTORE_AT, LAST_RESTORE_ERROR
-    if RESTORE_ONCE and not force:
+    if once and RESTORE_ONCE:
         return "skipped"
-    RESTORE_ONCE = True
+    if once:
+        RESTORE_ONCE = True
     if not is_configured():
         return "disabled"
     if (
@@ -86,7 +95,7 @@ def restore_state_if_configured(data_dir: Path, force: bool = False) -> str:
 
 
 def restore_state_from_github(data_dir: Path) -> str:
-    return restore_state_if_configured(data_dir, force=True)
+    return restore_state_if_configured(data_dir, force=True, once=False)
 
 
 def backup_state_if_configured(data_dir: Path) -> bool:
@@ -143,7 +152,7 @@ def extract_backup(data_dir: Path, archive: bytes) -> None:
 def safe_extract_target(root: Path, name: str) -> Path:
     normalized = Path(str(name).replace("\\", "/"))
     if normalized.is_absolute() or any(part in {"", ".", ".."} for part in normalized.parts):
-        raise ValueError("El respaldo contiene una ruta invalida.")
+        raise ValueError("El respaldo contiene una ruta inválida.")
     target = (root / normalized).resolve()
     if not str(target).startswith(str(root.resolve())):
         raise ValueError("El respaldo intenta escribir fuera del directorio de datos.")
@@ -163,7 +172,7 @@ def download_backup() -> bytes:
         return b""
     blob = github_json("GET", f"/repos/{cfg['repo']}/git/blobs/{meta['sha']}", cfg)
     if blob.get("encoding") != "base64":
-        raise ValueError("El respaldo externo no esta en base64.")
+        raise ValueError("El respaldo externo no está en base64.")
     return base64.b64decode(blob.get("content", ""))
 
 
@@ -220,7 +229,7 @@ def github_json(
         if allow_404 and exc.code == 404:
             return None
         detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"GitHub respondio {exc.code}: {detail}") from exc
+        raise RuntimeError(f"GitHub respondió {exc.code}: {detail}") from exc
     if not raw:
         return {}
     return json.loads(raw.decode("utf-8"))

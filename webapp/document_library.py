@@ -234,7 +234,7 @@ def generated_documents_for_entrega(entrega: dict[str, Any]) -> list[dict[str, A
                 {
                     "kind": "generated",
                     "category": "Boletines",
-                    "title": f"Boletin {barra}",
+                    "title": f"Boletín {barra}",
                     "name": f"BOLETIN - {barra}.pdf",
                     "meta": proveedor,
                     "view_url": boletin_url,

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "icons.html" as icons %}
 
 {% block title %}{{ folder.name }}{% endblock %}
 
@@ -58,14 +59,14 @@
         <span>{{ doc.name }}{% if doc.size_label %} · {{ doc.size_label }}{% endif %}{% if doc.meta %} · {{ doc.meta }}{% endif %}</span>
       </div>
       <div class="row-actions">
-        <a class="icon-action" href="{{ doc.view_url }}" target="_blank" data-tooltip="Ver archivo en pantalla" aria-label="Ver archivo">Ver</a>
-        <a class="icon-action primary" href="{{ doc.download_url }}" data-tooltip="Descargar archivo" aria-label="Descargar archivo">Descargar</a>
+        <a class="icon-action" href="{{ doc.view_url }}" target="_blank" data-tooltip="Ver archivo en pantalla" aria-label="Ver archivo">{{ icons.icon("eye") }}</a>
+        <a class="icon-action primary" href="{{ doc.download_url }}" data-tooltip="Descargar archivo" aria-label="Descargar archivo">{{ icons.icon("download") }}</a>
         {% if doc.deletable %}
         <form class="delete-inline-form mini" method="post" action="/archivos/eliminar">
           <input type="hidden" name="kind" value="{{ doc.kind }}">
           <input type="hidden" name="file_id" value="{{ doc.id }}">
           <input type="hidden" name="next" value="{{ next_url }}">
-          <button class="link-button" type="submit" data-tooltip="Eliminar este archivo">Eliminar</button>
+          <button class="icon-action danger button-icon" type="submit" data-tooltip="Eliminar este archivo" aria-label="Eliminar este archivo">{{ icons.icon("trash") }}</button>
         </form>
         {% endif %}
       </div>
@@ -75,7 +76,7 @@
 </section>
 {% else %}
 <section class="panel">
-  <p class="muted">Esta carpeta aun no tiene documentos.</p>
+  <p class="muted">Esta carpeta aún no tiene documentos.</p>
 </section>
 {% endfor %}
 {% endblock %}

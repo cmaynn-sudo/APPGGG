@@ -1,7 +1,7 @@
 <section class="print-document letter-liquidation" data-template="boletin">
   <div class="liquidation-sheet">
     <header class="liq-header">
-      <h1>REPORTE DE LIQUIDACION</h1>
+      <h1>REPORTE DE LIQUIDACIÓN</h1>
       <img src="/static/generated/logo.png" alt="">
     </header>
 
@@ -13,7 +13,7 @@
         <dl>
           <dt>NIT:</dt><dd>901.640.887-1</dd>
           <dt>DOCUMENTO:</dt><dd>{{ barra }}</dd>
-          <dt>FECHA DE LIQUIDACION:</dt><dd>{{ fecha }}</dd>
+          <dt>FECHA DE LIQUIDACIÓN:</dt><dd>{{ fecha }}</dd>
         </dl>
       </div>
       <div>
@@ -31,7 +31,10 @@
     <section class="liq-weights">
       <div><span>PESO RECIBIDO</span><strong>{{ peso_ini }} G</strong></div>
       <div><span>PESO FUNDIDO</span><strong>{{ peso_fin }} G</strong></div>
-      <div><span>PERDIDA</span><strong>{{ perdida }}</strong><strong>{{ porcentaje_perdida }}</strong></div>
+      <div>
+        <span>PÉRDIDA</span>
+        <span class="liq-loss-values"><strong>{{ perdida }}</strong><strong>{{ porcentaje_perdida }}</strong></span>
+      </div>
     </section>
 
     <section class="liq-columns">
@@ -79,7 +82,7 @@
 
     <section class="liq-royalties">
       <div>
-        <strong>REGALIAS ADEUDADAS POR EL PROVEEDOR</strong>
+        <strong>REGALÍAS ADEUDADAS POR EL PROVEEDOR</strong>
         <div class="royalty-period">{{ periodo_regalias }}</div>
       </div>
       <div class="royalty-head"><span>ORO</span><span>PLATA</span></div>
@@ -95,7 +98,7 @@
     <div class="liq-rule footer-rule"><span>RUCOM: {{ rucom }}</span></div>
 
     <section class="liq-params">
-      <h2>PARAMETROS</h2>
+      <h2>PARÁMETROS</h2>
       <div class="param-table">
         <strong>TC</strong>
         <strong>XAU</strong>
@@ -105,8 +108,8 @@
         <span>{{ oz_ag }}</span><span>1 OZ</span>
       </div>
       <div class="param-notes">
-        <span>NEGOCIACION: <strong>{{ precio_negociacion_porcentaje }}</strong></span>
-        <span>RETENCION: <strong>{{ retencion_porcentaje }}</strong></span>
+        <span>NEGOCIACIÓN: <strong>{{ precio_negociacion_porcentaje }}</strong></span>
+        <span>RETENCIÓN: <strong>{{ retencion_porcentaje }}</strong></span>
       </div>
     </section>
   </div>

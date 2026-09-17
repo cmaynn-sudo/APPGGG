@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Regalias{% endblock %}
+{% block title %}Regalías{% endblock %}
 
 {% block content %}
 <header class="page-header">
   <div>
     <p class="eyebrow">Datos base</p>
-    <h1>Regalias</h1>
+    <h1>Regalías</h1>
     <p>Valores mensuales usados en los boletines y certificados.</p>
   </div>
 </header>
@@ -24,9 +24,9 @@
         {% endfor %}
       </select>
     </label>
-    <label>Regalia AU<input name="au" inputmode="decimal" placeholder="419835,44"></label>
-    <label>Regalia AG<input name="ag" inputmode="decimal" placeholder="6309,32"></label>
-    <button class="button" type="submit" data-tooltip="Guardar valores mensuales de regalias">Guardar regalia</button>
+    <label>Regalía AU<input name="au" inputmode="decimal" placeholder="419835,44"></label>
+    <label>Regalía AG<input name="ag" inputmode="decimal" placeholder="6309,32"></label>
+    <button class="button" type="submit" data-tooltip="Guardar valores mensuales de regalías">Guardar regalía</button>
   </form>
 </section>
 
@@ -40,17 +40,17 @@
     <article class="document-row">
       <form class="item-edit-form wide" method="post" action="/regalias/guardar">
         <label>Mes<input name="mes" value="{{ row.mes }}" readonly></label>
-        <label>Regalia AU<input name="au" value="{{ row.au if row.au is not none else '' }}" inputmode="decimal"></label>
-        <label>Regalia AG<input name="ag" value="{{ row.ag if row.ag is not none else '' }}" inputmode="decimal"></label>
-        <button class="button button-secondary" type="submit" data-tooltip="Actualizar este mes de regalias">Actualizar</button>
+        <label>Regalía AU<input name="au" value="{{ row.au if row.au is not none else '' }}" inputmode="decimal"></label>
+        <label>Regalía AG<input name="ag" value="{{ row.ag if row.ag is not none else '' }}" inputmode="decimal"></label>
+        <button class="button button-secondary" type="submit" data-tooltip="Actualizar este mes de regalías">Actualizar</button>
       </form>
       <form class="delete-inline-form" method="post" action="/regalias/eliminar">
         <input type="hidden" name="mes" value="{{ row.mes }}">
-        <button class="link-button" type="submit" data-tooltip="Eliminar este mes de regalias">Eliminar</button>
+        <button class="link-button" type="submit" data-tooltip="Eliminar este mes de regalías">Eliminar</button>
       </form>
     </article>
     {% else %}
-    <p class="muted">Aun no hay regalías registradas.</p>
+    <p class="muted">Aún no hay regalías registradas.</p>
     {% endfor %}
   </div>
 </section>

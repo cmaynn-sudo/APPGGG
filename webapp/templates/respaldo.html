@@ -7,12 +7,12 @@
   <div>
     <p class="eyebrow">Persistencia</p>
     <h1>Respaldo de datos</h1>
-    <p>Guarda y recupera entregas, sociedades, regalias, parametros y archivos subidos.</p>
+    <p>Guarda y recupera entregas, sociedades, regalías, parámetros y archivos subidos.</p>
   </div>
   <div class="header-metrics">
     <div><span>{{ "Activo" if backup_status.enabled else "Pendiente" }}</span><small>GitHub</small></div>
-    <div><span>{{ "Si" if backup_status.local_store_exists else "No" }}</span><small>Datos locales</small></div>
-    <div><span>{{ "Si" if backup_status.local_uploads_exists else "No" }}</span><small>Archivos</small></div>
+    <div><span>{{ "Sí" if backup_status.local_store_exists else "No" }}</span><small>Datos locales</small></div>
+    <div><span>{{ "Sí" if backup_status.local_uploads_exists else "No" }}</span><small>Archivos</small></div>
   </div>
 </header>
 
@@ -29,7 +29,7 @@
       <h2>Respaldo manual</h2>
       <span>ZIP</span>
     </div>
-    <p class="muted">Descarga una copia completa del trabajo actual para recuperarla despues en Render o local.</p>
+    <p class="muted">Descarga una copia completa del trabajo actual para recuperarla después en Render o local.</p>
     <div class="inline-actions">
       <a class="button" href="/respaldo/descargar" data-tooltip="Descargar ZIP completo del estado actual">Descargar respaldo</a>
     </div>
@@ -48,11 +48,12 @@
 
   <div class="panel panel-wide">
     <div class="panel-title">
-      <h2>Respaldo automatico en GitHub</h2>
+      <h2>Respaldo automático en GitHub</h2>
       <span>{{ "Configurado" if backup_status.enabled else "Sin token" }}</span>
     </div>
     {% if backup_status.enabled %}
     <p class="muted">Repositorio: {{ backup_status.repo }} · Rama: {{ backup_status.branch }} · Archivo: {{ backup_status.path }}</p>
+    <p class="muted">Restauración al iniciar: {{ "Activa" if backup_status.restore_on_start else "Inactiva" }}</p>
     <div class="inline-actions">
       <form method="post" action="/respaldo/guardar-github">
         <button class="button" type="submit" data-tooltip="Enviar respaldo actual a GitHub">Guardar ahora</button>
@@ -62,10 +63,10 @@
       </form>
     </div>
     {% if backup_status.last_backup_at %}
-    <p class="muted">Ultimo guardado: {{ backup_status.last_backup_at }}</p>
+    <p class="muted">Último guardado: {{ backup_status.last_backup_at }}</p>
     {% endif %}
     {% if backup_status.last_restore_at %}
-    <p class="muted">Ultima restauracion: {{ backup_status.last_restore_at }}</p>
+    <p class="muted">Última restauración: {{ backup_status.last_restore_at }}</p>
     {% endif %}
     {% else %}
     <p class="muted">Para que Render Free no pierda los cambios al dormir, agrega en Render la variable GITHUB_BACKUP_TOKEN con permiso de escritura sobre el repositorio.</p>

@@ -17,26 +17,35 @@ env = Environment(
 )
 
 
-def render_print_html(slug: str, context: dict | None = None) -> str:
+def render_print_html(
+    slug: str,
+    context: dict | None = None,
+    *,
+    include_print_scale: bool = True,
+    page_size: str | None = None,
+    page_margin: str | None = None,
+) -> str:
     spec = TEMPLATE_BY_SLUG[slug]
     data = dict(SAMPLE_CONTEXT)
     if context:
         data.update(context)
     body = env.get_template(spec.render_template_name).render(**data)
     print_css = (STATIC_DIR / "print.css").read_text(encoding="utf-8")
+    scale_css = print_scale_css(slug) if include_print_scale else ""
     return f"""<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
   <title>{spec.title}</title>
   <style>
-    @page {{ size: {spec.page_size}; margin: {spec.page_margin}; }}
+    @page {{ size: {page_size or spec.page_size}; margin: {page_margin or spec.page_margin}; }}
     body {{ margin: 0; background: white; }}
     {print_css}
     .doc-sheet {{ box-shadow: none; margin: 0 auto; }}
+    {scale_css}
   </style>
 </head>
-<body>
+<body class="print-export print-{slug}">
 {body}
 </body>
 </html>
@@ -54,6 +63,12 @@ def render_print_pdf(slug: str, context: dict | None = None) -> bytes:
     data = dict(SAMPLE_CONTEXT)
     if context:
         data.update(context)
+    try:
+        return render_weasy_pdf(slug, data)
+    except ImportError:
+        print("[recepción] WeasyPrint no está instalado; usando PDF simplificado.")
+    except Exception as exc:
+        print(f"[recepción] No se pudo generar PDF desde HTML; usando PDF simplificado: {exc}")
     reportlab_renderers = {
         "preliminares": render_preliminares_pdf,
         "recibo-metales": render_recibo_pdf,
@@ -63,20 +78,95 @@ def render_print_pdf(slug: str, context: dict | None = None) -> bytes:
     }
     if slug in reportlab_renderers:
         return reportlab_renderers[slug](data, spec.title)
-    return render_html_pdf(slug, data)
+    raise RuntimeError("No hay motor PDF disponible para este documento.")
 
 
-def render_html_pdf(slug: str, context: dict | None = None) -> bytes:
-    try:
-        from xhtml2pdf import pisa
-    except ImportError as exc:
-        raise RuntimeError("Falta instalar xhtml2pdf para descargar documentos en PDF.") from exc
-    html = render_print_html(slug, context)
-    buffer = io.BytesIO()
-    result = pisa.CreatePDF(html, dest=buffer, link_callback=asset_path)
-    if result.err:
-        raise RuntimeError("No se pudo generar el PDF del documento.")
-    return buffer.getvalue()
+def render_weasy_pdf(slug: str, context: dict | None = None) -> bytes:
+    from weasyprint import HTML
+
+    zoom = pdf_zoom(slug)
+    page_size, page_margin = pdf_page_box(slug, zoom)
+    html = absolutize_static_urls(
+        render_print_html(
+            slug,
+            context,
+            include_print_scale=False,
+            page_size=page_size,
+            page_margin=page_margin,
+        )
+    )
+    return HTML(string=html, base_url=WEBAPP_DIR.as_uri()).write_pdf(zoom=zoom)
+
+
+def pdf_zoom(slug: str) -> float:
+    return {
+        "preliminares": 0.62,
+        "recibo-metales": 0.62,
+        "reporte-analisis": 0.62,
+        "certificado-regalias": 0.89,
+    }.get(slug, 1.0)
+
+
+def pdf_page_box(slug: str, zoom: float) -> tuple[str, str]:
+    spec = TEMPLATE_BY_SLUG[slug]
+    if zoom == 1:
+        return spec.page_size, spec.page_margin
+
+    page_sizes_mm = {
+        "a4": (210.0, 297.0),
+        "letter": (215.9, 279.4),
+    }
+    size = page_sizes_mm.get(spec.page_size.lower())
+    if not size:
+        return spec.page_size, spec.page_margin
+
+    width_mm, height_mm = size
+    page_size = f"{width_mm / zoom:.4f}mm {height_mm / zoom:.4f}mm"
+    margin = scaled_margin(spec.page_margin, zoom)
+    return page_size, margin
+
+
+def scaled_margin(margin: str, zoom: float) -> str:
+    value = margin.strip().lower()
+    if value in {"0", "0mm"}:
+        return "0"
+    if value.endswith("mm"):
+        return f"{float(value[:-2]) / zoom:.4f}mm"
+    return margin
+
+
+def print_scale_css(slug: str) -> str:
+    scales = {
+        "preliminares": "0.62",
+        "recibo-metales": "0.62",
+        "reporte-analisis": "0.62",
+        "certificado-regalias": "0.89",
+    }
+    scale = scales.get(slug)
+    if not scale:
+        return ""
+    inverse = f"{1 / float(scale):.4f}"
+    return f"""
+    .print-export .print-document {{
+      transform: scale({scale});
+      transform-origin: top left;
+      width: calc(100% * {inverse});
+    }}
+    .print-export .doc-sheet {{
+      margin: 0 !important;
+    }}
+    """
+
+
+def absolutize_static_urls(html: str) -> str:
+    static_uri = STATIC_DIR.as_uri().rstrip("/")
+    return (
+        html.replace('src="/static/', f'src="{static_uri}/')
+        .replace("src='/static/", f"src='{static_uri}/")
+        .replace("url(/static/", f"url({static_uri}/")
+        .replace("url('/static/", f"url('{static_uri}/")
+        .replace('url("/static/', f'url("{static_uri}/')
+    )
 
 
 def render_preliminares_pdf(data: dict, title: str) -> bytes:
@@ -86,7 +176,7 @@ def render_preliminares_pdf(data: dict, title: str) -> bytes:
     from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
 
     styles = pdf_styles()
-    rows = [["Proveedor", "Codigo", "Peso inicial", "Peso post", "Merma", "% merma", "Muestras", "Peso final"]]
+    rows = [["Proveedor", "Código", "Peso inicial", "Peso post", "Merma", "% merma", "Muestras", "Peso final"]]
     for item in data.get("preliminares", []):
         rows.append(
             [
@@ -154,7 +244,7 @@ def render_recibo_pdf(data: dict, title: str) -> bytes:
         metric_table(
             [
                 ("Peso inicial", f"{safe_text(data.get('peso_inicial'))} G"),
-                ("Peso post fundicion", f"{safe_text(data.get('peso_post'))} G"),
+                ("Peso post fundición", f"{safe_text(data.get('peso_post'))} G"),
                 ("Ley estimada", data.get("ley_estimada")),
                 ("Oro fino estimado", f"{safe_text(data.get('oro_fino_estimado'))} G"),
             ]
@@ -175,7 +265,7 @@ def render_reporte_analisis_pdf(data: dict, title: str) -> bytes:
                 ("Barra", data.get("barra")),
             ]
         ),
-        section_title("Resultado de analisis"),
+        section_title("Resultado de análisis"),
         metric_table(
             [
                 ("Peso inicial", f"{safe_text(data.get('peso_inicial'))} G"),
@@ -197,7 +287,7 @@ def render_certificado_pdf(data: dict, title: str) -> bytes:
     from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
 
     styles = pdf_styles()
-    rows = [["Documento", "Fecha", "Mes", "Finos oro", "Finos plata", "Regalia oro", "Regalia plata"]]
+    rows = [["Documento", "Fecha", "Mes", "Finos oro", "Finos plata", "Regalía oro", "Regalía plata"]]
     for item in data.get("boletines", []):
         rows.append(
             [
@@ -238,15 +328,15 @@ def render_certificado_pdf(data: dict, title: str) -> bytes:
         )
     )
     body = (
-        "C.I Green Global Group S.A.S certifica que al proveedor relacionado se le tramito "
-        "y pago las correspondientes regalias a la ANM."
+        "C.I Green Global Group S.A.S certifica que al proveedor relacionado se le tramitó "
+        "y pagó las correspondientes regalías a la ANM."
     )
     story = [
         header_block(title, data.get("fecha_larga")),
         Paragraph(safe_text(body), styles["Body"]),
         Spacer(1, 10),
         details_table([("Sociedad", data.get("sociedad")), ("NIT", data.get("nit"))]),
-        section_title("Boletines del periodo"),
+        section_title("Boletines del período"),
         table,
     ]
     return story_pdf(story, pagesize=A4, title=title, margins=(16 * mm, 16 * mm, 16 * mm, 16 * mm))
@@ -282,7 +372,7 @@ def render_boletin_pdf(data: dict, title: str) -> bytes:
         page.setStrokeColor(colors.black)
         page.rect(x, y, w, h, fill=1, stroke=0)
 
-    text(margin + 166, top, "REPORTE DE LIQUIDACION", 18, True, "center")
+    text(margin + 166, top, "REPORTE DE LIQUIDACIÓN", 18, True, "center")
     draw_logo(page, width - margin - 105, top - 20, 105, 55)
     line_y = top - 28
     page.setStrokeColor(colors.black)
@@ -305,7 +395,7 @@ def render_boletin_pdf(data: dict, title: str) -> bytes:
     text(right_x, y, "TIPO DE PROVEEDOR:", 9)
     text(right_x + 112, y, "RECICLADO", 9, True)
     y -= 18
-    text(left_x, y, "FECHA DE LIQUIDACION:", 9)
+    text(left_x, y, "FECHA DE LIQUIDACIÓN:", 9)
     text(left_x + 126, y, data.get("fecha"), 9, True)
     text(right_x, y, "TIPO DE ORO:", 9)
     text(right_x + 83, y, "RECICLADO", 9, True)
@@ -319,7 +409,7 @@ def render_boletin_pdf(data: dict, title: str) -> bytes:
     text(margin + thirds * 0.5, y + 10, f"{safe_text(data.get('peso_ini'))} G", 10, True, "center")
     text(margin + thirds * 1.5, y + 25, "PESO FUNDIDO", 8, False, "center")
     text(margin + thirds * 1.5, y + 10, f"{safe_text(data.get('peso_fin'))} G", 10, True, "center")
-    text(margin + thirds * 2.5, y + 25, "PERDIDA", 8, False, "center")
+    text(margin + thirds * 2.5, y + 25, "PÉRDIDA", 8, False, "center")
     text(margin + thirds * 2.32, y + 10, data.get("perdida"), 10, True, "center")
     text(margin + thirds * 2.68, y + 10, data.get("porcentaje_perdida"), 10, True, "center")
 
@@ -376,7 +466,7 @@ def render_boletin_pdf(data: dict, title: str) -> bytes:
     text(width - margin - 140, y + 5, f"RUCOM: {safe_text(data.get('rucom'))}", 7, False)
 
     y -= 66
-    text(x0, y + 46, "PARAMETROS", 9, True)
+    text(x0, y + 46, "PARÁMETROS", 9, True)
     rows = [
         ("TC", data.get("dolar"), "1 USD"),
         ("XAU", data.get("oz_au"), "1 OZ"),
@@ -387,8 +477,8 @@ def render_boletin_pdf(data: dict, title: str) -> bytes:
         text(x0, row_y, label, 8, True)
         text(x0 + 55, row_y, value, 8, False)
         text(x0 + 132, row_y, unit, 8, False)
-    text(x2, y + 24, f"Negociacion: {safe_text(data.get('precio_negociacion_porcentaje'))}", 7, False)
-    text(x2, y + 8, f"Retencion: {safe_text(data.get('retencion_porcentaje'))}", 7, False)
+    text(x2, y + 24, f"Negociación: {safe_text(data.get('precio_negociacion_porcentaje'))}", 7, False)
+    text(x2, y + 8, f"Retención: {safe_text(data.get('retencion_porcentaje'))}", 7, False)
 
     page.showPage()
     page.save()
