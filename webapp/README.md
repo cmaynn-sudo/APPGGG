@@ -12,6 +12,7 @@ La app conserva los Excel actuales como referencia visual y replica sus fórmula
 - `data_store.py` guarda entregas, regalías editadas y archivos subidos.
 - `renderer.py` genera las vistas HTML y los PDFs descargables desde las mismas plantillas visuales.
 - `document_library.py` mezcla entregas web, documentos generados e importaciones locales.
+- `analytics.py` consolida facturación y pesos por mes, incluyendo boletines PDF de carpetas históricas.
 - `import_local_deliveries.py` copia los documentos existentes desde `~/Documents/CI GREEN GLOBAL` a `webapp/imported_docs/`.
 
 Ejecutar:
@@ -50,21 +51,53 @@ REDONDEAR(((OZ AU / 31,10347) * dólar) * precio_negociación; 0)
 
 Puedes escribir porcentajes con coma o punto decimal, por ejemplo `97,5`, `97.5`, `2,5` o `2.5`.
 
-## Respaldo para Render Free
+## Almacenamiento persistente para Render Free
 
-Render Free no conserva archivos locales después de reinicios, reposos o deploys. Para que no se pierdan entregas, sociedades editadas, regalías y archivos subidos, configura un respaldo GitHub:
+Render Free no conserva archivos locales después de reinicios, reposos o deploys. La opción recomendada para esta aplicación es Cloudflare R2, porque está diseñada para archivos y usa una API compatible con S3.
 
-1. Crea un token de GitHub con permiso de escritura de contenido sobre este repositorio.
-2. En Render, agrega `GITHUB_BACKUP_TOKEN` como variable secreta.
-3. Deja `GITHUB_BACKUP_REPO=cmaynn-sudo/APPGGG`, `GITHUB_BACKUP_BRANCH=app-data` y `GITHUB_BACKUP_PATH=recepcion-state/state.zip`.
+1. En Cloudflare crea un bucket R2, por ejemplo `recepcion-green-global`.
+2. Crea credenciales S3 con permiso de lectura y escritura para ese bucket.
+3. Agrega en Render las variables `R2_ENDPOINT_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` y `R2_BUCKET_NAME`.
+4. Conserva `R2_OBJECT_KEY=recepcion-state/state.zip` y `PERSISTENCE_RESTORE_ON_START=true`.
 
-La app crea la rama `app-data` si no existe, guarda allí un ZIP del estado y lo restaura automáticamente al arrancar.
+La aplicación guarda automáticamente un ZIP con el estado y los archivos subidos, y lo restaura al arrancar. Si R2 está configurado, tiene prioridad. El respaldo anterior en GitHub se mantiene como alternativa para no interrumpir instalaciones existentes.
 
 También queda disponible el módulo `Respaldo` dentro de la app para:
 
 - Descargar un ZIP completo del estado actual.
 - Restaurar ese ZIP manualmente.
-- Forzar guardar o restaurar desde GitHub cuando `GITHUB_BACKUP_TOKEN` ya esté configurado.
+- Forzar un guardado o una restauración desde el almacenamiento externo configurado.
+
+Variables de R2:
+
+```text
+R2_ENDPOINT_URL=https://ACCOUNT_ID.r2.cloudflarestorage.com
+R2_ACCESS_KEY_ID=credencial-r2
+R2_SECRET_ACCESS_KEY=secreto-r2
+R2_BUCKET_NAME=recepcion-green-global
+R2_OBJECT_KEY=recepcion-state/state.zip
+PERSISTENCE_RESTORE_ON_START=true
+```
+
+Compatibilidad con el respaldo anterior:
+
+```text
+GITHUB_BACKUP_REPO=cmaynn-sudo/APPGGG
+GITHUB_BACKUP_TOKEN=token-secreto-con-contenido-write
+GITHUB_BACKUP_BRANCH=app-data
+GITHUB_BACKUP_PATH=recepcion-state/state.zip
+```
+
+## Dashboard
+
+El dashboard suma por año y por mes:
+
+- Valor total de metales facturado.
+- Gramos iniciales facturados.
+- Gramos finales facturados.
+- Valor transferido, entregas y cantidad de boletines.
+
+Las entregas creadas en la web se calculan directamente con las mismas fórmulas del boletín. Al subir una carpeta histórica, la aplicación también lee sus PDFs de boletines y evita contabilizar duplicados.
 
 ## Render
 
@@ -97,6 +130,12 @@ ADMIN_USERNAME=admin
 ADMIN_PASSWORD=admin
 SESSION_SECRET=un-secreto-largo-y-aleatorio
 MAX_UPLOAD_MB=25
+PERSISTENCE_RESTORE_ON_START=true
+R2_ENDPOINT_URL=https://ACCOUNT_ID.r2.cloudflarestorage.com
+R2_ACCESS_KEY_ID=credencial-r2
+R2_SECRET_ACCESS_KEY=secreto-r2
+R2_BUCKET_NAME=recepcion-green-global
+R2_OBJECT_KEY=recepcion-state/state.zip
 GITHUB_BACKUP_REPO=cmaynn-sudo/APPGGG
 GITHUB_BACKUP_TOKEN=token-secreto-con-contenido-write
 GITHUB_BACKUP_BRANCH=app-data
@@ -104,6 +143,6 @@ GITHUB_BACKUP_PATH=recepcion-state/state.zip
 GITHUB_BACKUP_RESTORE_ON_START=true
 ```
 
-En el plan gratuito, Render no conserva archivos subidos ni cambios hechos desde la app después de reinicios o reposos. Con `GITHUB_BACKUP_TOKEN`, la app restaura esos datos desde la rama `app-data`.
+En el plan gratuito, Render no conserva archivos subidos ni cambios hechos desde la app después de reinicios o reposos. Con R2 configurado, la app restaura esos datos automáticamente. Si R2 no está configurado, intenta usar el respaldo GitHub anterior.
 
 Los PDFs descargables se generan con WeasyPrint desde el mismo HTML/CSS que se visualiza en la app. Si WeasyPrint no está disponible, el sistema usa el PDF simplificado de respaldo para no bloquear la operación.

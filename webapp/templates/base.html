@@ -1,3 +1,4 @@
+{% import "icons.html" as icons %}
 <!doctype html>
 <html lang="es">
   <head>
@@ -14,53 +15,94 @@
   </head>
   <body class="{% if public %}public-body{% endif %}">
     {% if not public %}
+    {% set current_path = request_path.split('?')[0] %}
     <aside class="sidebar">
-      <div class="brand">
-        <img src="/static/generated/logo.png" alt="">
+      <a class="brand" href="/" aria-label="Ir al dashboard">
+        <img src="/static/generated/logo.png" alt="Green Global Group">
         <div>
           <strong>Green Global</strong>
-          <span>Recepción</span>
+          <span>Recepción de metales</span>
         </div>
-      </div>
-      <nav>
-        <a href="/">Panel</a>
-        <a href="/documentos">Documentos</a>
-        <a href="/entregas">Entregas</a>
-        <a href="/leyes">Leyes</a>
-        <a href="/boletines">Boletines</a>
-        <a href="/certificados">Certificados</a>
-        <a href="/sociedades">Sociedades</a>
-        <a href="/regalias">Regalías</a>
-        <a href="/parametros">Parámetros</a>
-        <a href="/respaldo">Respaldo</a>
+      </a>
+
+      <nav class="sidebar-nav" aria-label="Navegación principal">
+        <span class="nav-label">Resumen</span>
+        <a class="{{ 'active' if current_path == '/' else '' }}" href="/">
+          {{ icons.icon("dashboard") }}<span>Dashboard</span>
+        </a>
+
+        <span class="nav-label">Operación</span>
+        <a class="{{ 'active' if current_path == '/documentos' else '' }}" href="/documentos">
+          {{ icons.icon("files") }}<span>Documentos</span>
+        </a>
+        <a class="{{ 'active' if current_path.startswith('/entregas') else '' }}" href="/entregas">
+          {{ icons.icon("folder") }}<span>Entregas</span>
+        </a>
+        <a class="{{ 'active' if current_path == '/leyes' else '' }}" href="/leyes">
+          {{ icons.icon("flask") }}<span>Leyes</span>
+        </a>
+        <a class="{{ 'active' if current_path == '/boletines' else '' }}" href="/boletines">
+          {{ icons.icon("receipt") }}<span>Boletines</span>
+        </a>
+        <a class="{{ 'active' if current_path == '/certificados' else '' }}" href="/certificados">
+          {{ icons.icon("badge-check") }}<span>Certificados</span>
+        </a>
+
+        <span class="nav-label">Administración</span>
+        <a class="{{ 'active' if current_path == '/sociedades' else '' }}" href="/sociedades">
+          {{ icons.icon("building") }}<span>Sociedades</span>
+        </a>
+        <a class="{{ 'active' if current_path == '/regalias' else '' }}" href="/regalias">
+          {{ icons.icon("coins") }}<span>Regalías</span>
+        </a>
+        <a class="{{ 'active' if current_path == '/parametros' else '' }}" href="/parametros">
+          {{ icons.icon("sliders") }}<span>Parámetros</span>
+        </a>
+        <a class="{{ 'active' if current_path == '/respaldo' else '' }}" href="/respaldo">
+          {{ icons.icon("database") }}<span>Almacenamiento</span>
+        </a>
       </nav>
+
       <div class="sidebar-footer">
-        <button class="theme-toggle" type="button" data-theme-toggle>Modo claro</button>
+        <button class="sidebar-control theme-toggle" type="button" data-theme-toggle title="Cambiar modo de color">
+          {{ icons.icon("sun") }}<span data-theme-label>Modo claro</span>
+        </button>
         {% if user %}
-        <div class="user-pill">
-          <span>{{ user.username }}</span>
-          <strong>{{ user.role }}</strong>
+        <div class="user-card">
+          <span class="user-avatar">{{ user.username[:1]|upper }}</span>
+          <div><strong>{{ user.username }}</strong><small>{{ user.role }}</small></div>
         </div>
-        <a class="button button-ghost" href="/logout" data-tooltip="Cerrar la sesión actual">Cerrar sesión</a>
+        <a class="logout-button" href="/logout" title="Cerrar la sesión actual">
+          {{ icons.icon("log-out") }}<span>Cerrar sesión</span>
+        </a>
         {% else %}
         <a class="button" href="/login">Entrar</a>
         {% endif %}
       </div>
     </aside>
     {% endif %}
+
     <main class="{% if public %}public-page{% else %}page{% endif %}">
       {% if not public %}
-      <div class="top-session">
-        <div class="top-session-user">
-          <span>Sesión activa</span>
-          <strong>{{ user.username if user else "Usuario" }}</strong>
+      <header class="app-toolbar">
+        <div class="toolbar-product">
+          <span>Operación</span>
+          <strong>Recepción Green Global</strong>
         </div>
-        <a class="button button-small button-ghost" href="/logout" data-tooltip="Cerrar la sesión actual">Cerrar sesión</a>
-      </div>
+        <div class="toolbar-actions">
+          <div class="top-session-user">
+            <span>Sesión activa</span>
+            <strong>{{ user.username if user else "Usuario" }}</strong>
+          </div>
+          <a class="toolbar-logout" href="/logout" data-tooltip="Cerrar la sesión actual" aria-label="Cerrar sesión">
+            {{ icons.icon("log-out") }}<span>Cerrar sesión</span>
+          </a>
+        </div>
+      </header>
       {% if backup_status is defined and not backup_status.enabled %}
-      <div class="notice warning backup-warning">
-        Respaldo externo pendiente: configura GITHUB_BACKUP_TOKEN en Render para conservar los cambios después de reinicios y deploys.
-      </div>
+      <a class="notice warning backup-warning" href="/respaldo">
+        El almacenamiento persistente aún no está configurado. Abre este módulo para evitar pérdidas después de un reinicio o deploy.
+      </a>
       {% endif %}
       {% endif %}
       {% block content %}{% endblock %}

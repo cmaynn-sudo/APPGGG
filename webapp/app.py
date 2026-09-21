@@ -15,6 +15,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 from jinja2 import ChainableUndefined, Environment, FileSystemLoader, select_autoescape
 
 import auth
+import analytics
 import calculations
 import core
 import data_store
@@ -60,7 +61,7 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 return
 
             if path == "/":
-                self.render_dashboard()
+                self.render_dashboard(query)
             elif path == "/documentos":
                 self.render_documentos()
             elif path == "/leyes":
@@ -195,19 +196,20 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 self.delete_folder(form)
             elif path == "/archivos/eliminar":
                 self.delete_file(form)
-            elif path == "/respaldo/guardar-github":
-                self.save_state_to_github()
-            elif path == "/respaldo/restaurar-github":
-                self.restore_state_from_github()
+            elif path in {"/respaldo/guardar-remoto", "/respaldo/guardar-github"}:
+                self.save_state_to_remote()
+            elif path in {"/respaldo/restaurar-remoto", "/respaldo/restaurar-github"}:
+                self.restore_state_from_remote()
             else:
                 self.send_error(HTTPStatus.NOT_FOUND, "Ruta no encontrada")
         except Exception as exc:
             self.render_error(str(exc))
 
-    def render_dashboard(self) -> None:
+    def render_dashboard(self, query: dict) -> None:
         store = data_store.load_store()
         folders = document_library.all_folders()
         imported = [folder for folder in folders if folder.get("source") != "web"]
+        dashboard = analytics.dashboard_summary(query.get("year", [""])[0])
         self.render(
             "dashboard.html",
             {
@@ -219,6 +221,7 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 "web_entregas": data_store.list_entregas(),
                 "exported_at": document_library.exported_at_label(),
                 "backup_status": persistence.runtime_status(data_store.DATA_DIR),
+                "dashboard": dashboard,
             },
         )
 
@@ -422,9 +425,7 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             self.render_login({"next": [form.get("next", "/")]}, "Usuario o contraseña incorrectos.")
             return
         token = auth.create_session(user)
-        next_url = form.get("next", "/documentos") or "/documentos"
-        if next_url == "/":
-            next_url = "/documentos"
+        next_url = form.get("next", "/") or "/"
         self.send_response(HTTPStatus.SEE_OTHER)
         self.send_header("Location", next_url)
         self.send_header("Set-Cookie", auth.session_cookie_header(token, secure=self.is_secure_request()))
@@ -438,11 +439,11 @@ class RecepcionHandler(BaseHTTPRequestHandler):
 
     def render_login(self, query: dict, error: str = "") -> None:
         if self.current_user():
-            next_url = query.get("next", ["/documentos"])[0] or "/documentos"
-            self.redirect("/documentos" if next_url == "/" else next_url)
+            next_url = query.get("next", ["/"])[0] or "/"
+            self.redirect(next_url)
             return
-        next_url = query.get("next", ["/documentos"])[0] or "/documentos"
-        self.render("login.html", {"next": "/documentos" if next_url == "/" else next_url, "error": error}, public=True)
+        next_url = query.get("next", ["/"])[0] or "/"
+        self.render("login.html", {"next": next_url, "error": error}, public=True)
 
     def current_user(self) -> dict | None:
         if not hasattr(self, "_current_user"):
@@ -452,7 +453,7 @@ class RecepcionHandler(BaseHTTPRequestHandler):
     def require_login(self) -> bool:
         if self.current_user():
             return True
-        next_url = "/documentos" if (self.path or "/") == "/" else self.path or "/documentos"
+        next_url = self.path or "/"
         self.redirect(f"/login?next={quote(next_url, safe='')}")
         return False
 
@@ -529,25 +530,27 @@ class RecepcionHandler(BaseHTTPRequestHandler):
         persistence.import_backup_archive(data_store.DATA_DIR, backup_file["content"])
         self.redirect("/respaldo?msg=Respaldo%20restaurado")
 
-    def save_state_to_github(self) -> None:
+    def save_state_to_remote(self) -> None:
         if not persistence.is_configured():
-            self.redirect("/respaldo?error=Configura%20GITHUB_BACKUP_TOKEN%20en%20Render")
+            self.redirect("/respaldo?error=Configura%20Cloudflare%20R2%20o%20GitHub%20en%20Render")
             return
         if persistence.backup_state_if_configured(data_store.DATA_DIR):
-            self.redirect("/respaldo?msg=Respaldo%20guardado%20en%20GitHub")
+            provider = persistence.runtime_status().get("provider", "almacenamiento externo")
+            self.redirect(f"/respaldo?msg={quote('Respaldo guardado en ' + provider)}")
             return
         self.redirect("/respaldo?error=No%20se%20pudo%20guardar%20el%20respaldo")
 
-    def restore_state_from_github(self) -> None:
+    def restore_state_from_remote(self) -> None:
         if not persistence.is_configured():
-            self.redirect("/respaldo?error=Configura%20GITHUB_BACKUP_TOKEN%20en%20Render")
+            self.redirect("/respaldo?error=Configura%20Cloudflare%20R2%20o%20GitHub%20en%20Render")
             return
-        result = persistence.restore_state_from_github(data_store.DATA_DIR)
+        result = persistence.restore_state_from_remote(data_store.DATA_DIR)
         if result == "restored":
-            self.redirect("/respaldo?msg=Respaldo%20restaurado%20desde%20GitHub")
+            provider = persistence.runtime_status().get("provider", "el almacenamiento externo")
+            self.redirect(f"/respaldo?msg={quote('Respaldo restaurado desde ' + provider)}")
             return
         if result == "remote-empty":
-            self.redirect("/respaldo?error=No%20hay%20respaldo%20guardado%20en%20GitHub")
+            self.redirect("/respaldo?error=No%20hay%20un%20respaldo%20externo%20guardado")
             return
         self.redirect(f"/respaldo?error={quote('No se pudo restaurar el respaldo: ' + result)}")
 

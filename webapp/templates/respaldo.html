@@ -6,11 +6,11 @@
 <header class="page-header">
   <div>
     <p class="eyebrow">Persistencia</p>
-    <h1>Respaldo de datos</h1>
+    <h1>Almacenamiento de datos</h1>
     <p>Guarda y recupera entregas, sociedades, regalías, parámetros y archivos subidos.</p>
   </div>
   <div class="header-metrics">
-    <div><span>{{ "Activo" if backup_status.enabled else "Pendiente" }}</span><small>GitHub</small></div>
+    <div><span>{{ "Activo" if backup_status.enabled else "Pendiente" }}</span><small>{{ backup_status.provider }}</small></div>
     <div><span>{{ "Sí" if backup_status.local_store_exists else "No" }}</span><small>Datos locales</small></div>
     <div><span>{{ "Sí" if backup_status.local_uploads_exists else "No" }}</span><small>Archivos</small></div>
   </div>
@@ -48,18 +48,18 @@
 
   <div class="panel panel-wide">
     <div class="panel-title">
-      <h2>Respaldo automático en GitHub</h2>
-      <span>{{ "Configurado" if backup_status.enabled else "Sin token" }}</span>
+      <h2>Almacenamiento automático</h2>
+      <span>{{ "Configurado" if backup_status.enabled else "Sin configurar" }}</span>
     </div>
     {% if backup_status.enabled %}
-    <p class="muted">Repositorio: {{ backup_status.repo }} · Rama: {{ backup_status.branch }} · Archivo: {{ backup_status.path }}</p>
+    <p class="muted">Proveedor: {{ backup_status.provider }} · Ubicación: {{ backup_status.location }}</p>
     <p class="muted">Restauración al iniciar: {{ "Activa" if backup_status.restore_on_start else "Inactiva" }}</p>
     <div class="inline-actions">
-      <form method="post" action="/respaldo/guardar-github">
-        <button class="button" type="submit" data-tooltip="Enviar respaldo actual a GitHub">Guardar ahora</button>
+      <form method="post" action="/respaldo/guardar-remoto">
+        <button class="button" type="submit" data-tooltip="Enviar el estado actual al almacenamiento externo">Guardar ahora</button>
       </form>
-      <form method="post" action="/respaldo/restaurar-github">
-        <button class="button button-ghost" type="submit" data-tooltip="Recuperar el respaldo guardado en GitHub">Restaurar desde GitHub</button>
+      <form method="post" action="/respaldo/restaurar-remoto">
+        <button class="button button-ghost" type="submit" data-tooltip="Recuperar el último respaldo externo">Restaurar respaldo</button>
       </form>
     </div>
     {% if backup_status.last_backup_at %}
@@ -69,7 +69,7 @@
     <p class="muted">Última restauración: {{ backup_status.last_restore_at }}</p>
     {% endif %}
     {% else %}
-    <p class="muted">Para que Render Free no pierda los cambios al dormir, agrega en Render la variable GITHUB_BACKUP_TOKEN con permiso de escritura sobre el repositorio.</p>
+    <p class="muted">La opción recomendada es Cloudflare R2. Configura en Render las variables R2_ENDPOINT_URL, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY y R2_BUCKET_NAME. GitHub sigue disponible como alternativa temporal.</p>
     {% endif %}
   </div>
 </section>

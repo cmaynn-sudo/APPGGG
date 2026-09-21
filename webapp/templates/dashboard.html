@@ -1,102 +1,191 @@
 {% extends "base.html" %}
+{% import "icons.html" as icons %}
 
-{% block title %}Panel de recepción{% endblock %}
+{% block title %}Dashboard de recepción{% endblock %}
 
 {% block content %}
-<header class="page-header">
+<header class="page-header dashboard-header">
   <div>
-    <p class="eyebrow">Sistema documental</p>
-    <h1>Recepción y liquidación</h1>
-    <p>Documentos web, ventas importadas y plantillas listas para imprimir.</p>
+    <p class="eyebrow">Control operativo</p>
+    <h1>Dashboard de recepción</h1>
+    <p>Facturación y peso procesado, consolidados por mes.</p>
   </div>
-  <div class="header-metrics">
-    <div><span>{{ sociedades|length }}</span><small>Sociedades</small></div>
-    <div><span>{{ regalias|length }}</span><small>Meses de regalías</small></div>
-    <div><span>{{ document_folders|length }}</span><small>Carpetas</small></div>
-  </div>
+  <form class="period-filter" method="get" action="/">
+    <label for="dashboard-year">Año</label>
+    <select id="dashboard-year" name="year" onchange="this.form.submit()">
+      {% for year in dashboard.years %}
+      <option value="{{ year }}" {{ "selected" if year == dashboard.year else "" }}>{{ year }}</option>
+      {% endfor %}
+    </select>
+  </form>
 </header>
 
-<section class="work-grid">
-  <div class="panel panel-wide">
-    <div class="panel-title">
-      <h2>Flujo actual</h2>
-      <span>{{ root_base }}</span>
+<section class="kpi-grid" aria-label="Indicadores anuales">
+  <article class="kpi-card kpi-money">
+    <span class="kpi-icon">{{ icons.icon("dollar") }}</span>
+    <div>
+      <small>Facturación total</small>
+      <strong>{{ dashboard.totals.facturacion_display }}</strong>
+      <span>{{ dashboard.totals.boletines }} boletín(es) en {{ dashboard.year }}</span>
     </div>
-    <div class="flow">
-      <a class="flow-step" href="/documentos"><span>1</span><strong>Documentos</strong><small>Entrega, recibos y preliminares</small></a>
-      <a class="flow-step" href="/leyes"><span>2</span><strong>Leyes</strong><small>Registro AU/AG y reporte</small></a>
-      <a class="flow-step" href="/boletines"><span>3</span><strong>Boletines</strong><small>Liquidación y cierre</small></a>
-      <a class="flow-step" href="/entregas"><span>4</span><strong>Entregas</strong><small>Carpetas, PDFs y descargas</small></a>
-      <a class="flow-step" href="/regalias"><span>5</span><strong>Regalías</strong><small>Actualización mensual</small></a>
-      <a class="flow-step" href="/parametros"><span>6</span><strong>Parámetros</strong><small>Retención y negociación</small></a>
+  </article>
+  <article class="kpi-card kpi-initial">
+    <span class="kpi-icon">{{ icons.icon("weight") }}</span>
+    <div>
+      <small>Gramos iniciales</small>
+      <strong>{{ dashboard.totals.peso_inicial_display }} g</strong>
+      <span>Peso recibido facturado</span>
     </div>
-  </div>
+  </article>
+  <article class="kpi-card kpi-final">
+    <span class="kpi-icon">{{ icons.icon("trending") }}</span>
+    <div>
+      <small>Gramos finales</small>
+      <strong>{{ dashboard.totals.peso_final_display }} g</strong>
+      <span>Peso fundido facturado</span>
+    </div>
+  </article>
+  <article class="kpi-card kpi-deliveries">
+    <span class="kpi-icon">{{ icons.icon("folder") }}</span>
+    <div>
+      <small>Entregas facturadas</small>
+      <strong>{{ dashboard.totals.entregas }}</strong>
+      <span>{{ dashboard.totals.transferido_display }} transferido</span>
+    </div>
+  </article>
+</section>
 
-  <div class="panel">
+<section class="dashboard-layout">
+  <div class="panel revenue-panel">
     <div class="panel-title">
-      <h2>Respaldo</h2>
-      <span>{{ "Activo" if backup_status.enabled else "Pendiente" }}</span>
+      <div>
+        <h2>Facturación mensual</h2>
+        <p>Valor total de metales por mes</p>
+      </div>
+      <span>{{ dashboard.year }}</span>
     </div>
-    {% if backup_status.enabled %}
-    <p class="muted">GitHub · {{ backup_status.repo }} · {{ backup_status.branch }}</p>
-    {% if backup_status.last_backup_at %}
-    <p class="muted">Último guardado: {{ backup_status.last_backup_at }}</p>
-    {% endif %}
-    {% else %}
-    <p class="muted">Configura GITHUB_BACKUP_TOKEN en Render para conservar cambios después de reinicios y deploys.</p>
-    {% endif %}
-    {% if backup_status.last_backup_error or backup_status.last_restore_error %}
-    <p class="form-error">{{ backup_status.last_backup_error or backup_status.last_restore_error }}</p>
-    {% endif %}
-    <div class="inline-actions">
-      <a class="button button-small" href="/respaldo" data-tooltip="Abrir módulo de respaldo">Abrir respaldo</a>
-      <a class="button button-small button-ghost" href="/respaldo/descargar" data-tooltip="Descargar respaldo completo">Descargar ZIP</a>
-    </div>
-  </div>
-
-  <div class="panel">
-    <div class="panel-title">
-      <h2>Entregas web</h2>
-      <span>{{ web_entregas|length }} registro(s)</span>
-    </div>
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Entrega</th>
-          <th>Fecha</th>
-          <th>Sociedades</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for entrega in web_entregas[:8] %}
-        <tr>
-          <td><a href="/entregas/web/{{ entrega.id }}">{{ entrega.name }}</a></td>
-          <td>{{ entrega.fecha }}</td>
-          <td>{{ entrega["items"]|length }}</td>
-        </tr>
-        {% else %}
-        <tr>
-          <td colspan="3">No hay entregas web todavía.</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-
-  <div class="panel">
-    <div class="panel-title">
-      <h2>Ventas importadas</h2>
-      <span>{{ exported_at }}</span>
-    </div>
-    <div class="template-list">
-      {% for folder in imported_folders[:8] %}
-      <a href="{{ folder.href }}">
-        <strong>{{ folder.name }}</strong>
-        <small>{{ folder.year }} {{ folder.month }} · {{ folder.document_count }} archivo(s)</small>
-      </a>
-      {% else %}
-      <p class="muted">No hay entregas locales importadas.</p>
+    <div class="revenue-chart" role="img" aria-label="Facturación mensual de {{ dashboard.year }}">
+      {% for month in dashboard.months %}
+      <div class="chart-column" title="{{ month.name }}: {{ month.facturacion_display }}">
+        <span class="chart-value">{{ month.facturacion_display if month.facturacion else "" }}</span>
+        <div class="chart-track"><i style="height: {{ month.bar_percent }}%"></i></div>
+        <strong>{{ month.name[:3] }}</strong>
+      </div>
       {% endfor %}
+    </div>
+  </div>
+
+  <aside class="panel status-panel">
+    <div class="panel-title">
+      <div>
+        <h2>Estado del sistema</h2>
+        <p>Datos y almacenamiento</p>
+      </div>
+      <span class="status-dot {{ 'online' if backup_status.enabled else 'warning' }}"></span>
+    </div>
+    <dl class="status-list">
+      <div><dt>Almacenamiento</dt><dd>{{ backup_status.provider }}</dd></div>
+      <div><dt>Entregas visibles</dt><dd>{{ document_folders|length }}</dd></div>
+      <div><dt>Sociedades</dt><dd>{{ sociedades|length }}</dd></div>
+      <div><dt>Datos históricos</dt><dd>{{ "Incluidos" if dashboard.has_historical else "Sin boletines importados" }}</dd></div>
+    </dl>
+    <a class="text-action" href="/respaldo">
+      Revisar almacenamiento {{ icons.icon("arrow-right") }}
+    </a>
+  </aside>
+
+  <div class="panel monthly-table-panel">
+    <div class="panel-title">
+      <div>
+        <h2>Totales por mes</h2>
+        <p>Solo se contabilizan registros que ya generan boletín.</p>
+      </div>
+      <span>{{ dashboard.totals.boletines }} documento(s)</span>
+    </div>
+    <div class="table-scroll">
+      <table class="data-table dashboard-table">
+        <thead>
+          <tr>
+            <th>Mes</th>
+            <th>Boletines</th>
+            <th>Facturación</th>
+            <th>Gramos iniciales</th>
+            <th>Gramos finales</th>
+            <th>Valor transferido</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for month in dashboard.months %}
+          <tr class="{{ 'empty-row' if not month.boletines else '' }}">
+            <td><strong>{{ month.name }}</strong></td>
+            <td>{{ month.boletines }}</td>
+            <td>{{ month.facturacion_display }}</td>
+            <td>{{ month.peso_inicial_display }} g</td>
+            <td>{{ month.peso_final_display }} g</td>
+            <td>{{ month.transferido_display }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th>Total {{ dashboard.year }}</th>
+            <th>{{ dashboard.totals.boletines }}</th>
+            <th>{{ dashboard.totals.facturacion_display }}</th>
+            <th>{{ dashboard.totals.peso_inicial_display }} g</th>
+            <th>{{ dashboard.totals.peso_final_display }} g</th>
+            <th>{{ dashboard.totals.transferido_display }}</th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    {% if dashboard.read_errors %}
+    <p class="data-note">{{ dashboard.read_errors }} boletín(es) importado(s) no pudieron leerse y no se incluyeron en las cifras.</p>
+    {% endif %}
+  </div>
+
+  <div class="panel recent-panel">
+    <div class="panel-title">
+      <div>
+        <h2>Facturación reciente</h2>
+        <p>Últimos boletines contabilizados</p>
+      </div>
+      <a class="text-action" href="/boletines">Ver boletines</a>
+    </div>
+    <div class="recent-list">
+      {% for record in dashboard.recent %}
+      <div class="recent-row">
+        <span class="recent-icon">{{ icons.icon("receipt") }}</span>
+        <div>
+          <strong>{{ record.documento or "Boletín" }}</strong>
+          <small>{{ record.sociedad or record.source_label }} · {{ record.date }}</small>
+        </div>
+        <div class="recent-amount">
+          <strong>{{ record.facturacion_display }}</strong>
+          <small>{{ record.peso_final_display }} g finales</small>
+        </div>
+      </div>
+      {% else %}
+      <div class="empty-state">
+        {{ icons.icon("receipt") }}
+        <strong>Aún no hay boletines facturados en {{ dashboard.year }}</strong>
+        <span>Completa las leyes y los parámetros de una entrega para verla aquí.</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="panel shortcuts-panel">
+    <div class="panel-title">
+      <div>
+        <h2>Acciones rápidas</h2>
+        <p>Continúa con el flujo de trabajo</p>
+      </div>
+    </div>
+    <div class="shortcut-list">
+      <a href="/documentos">{{ icons.icon("files") }}<span><strong>Nueva entrega</strong><small>Crear y agregar sociedades</small></span>{{ icons.icon("arrow-right") }}</a>
+      <a href="/leyes">{{ icons.icon("flask") }}<span><strong>Registrar leyes</strong><small>Ingresar resultados AU y AG</small></span>{{ icons.icon("arrow-right") }}</a>
+      <a href="/entregas">{{ icons.icon("folder") }}<span><strong>Abrir entregas</strong><small>Consultar carpetas y archivos</small></span>{{ icons.icon("arrow-right") }}</a>
+      <a href="/parametros">{{ icons.icon("sliders") }}<span><strong>Parámetros</strong><small>Negociación y retención</small></span>{{ icons.icon("arrow-right") }}</a>
     </div>
   </div>
 </section>

@@ -8,6 +8,18 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.13.5
+      - key: PERSISTENCE_RESTORE_ON_START
+        value: "true"
+      - key: R2_ENDPOINT_URL
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      - key: R2_OBJECT_KEY
+        value: recepcion-state/state.zip
       - key: GITHUB_BACKUP_REPO
         value: cmaynn-sudo/APPGGG
       - key: GITHUB_BACKUP_BRANCH

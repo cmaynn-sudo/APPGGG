@@ -1,13 +1,16 @@
 (() => {
   const root = document.documentElement;
   const button = document.querySelector("[data-theme-toggle]");
+  const themeLabel = document.querySelector("[data-theme-label]");
 
   function applyTheme(theme) {
     root.dataset.theme = theme;
     localStorage.setItem("recepcion-theme", theme);
     if (button) {
-      button.textContent = theme === "dark" ? "Modo oscuro" : "Modo claro";
       button.setAttribute("aria-label", theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro");
+    }
+    if (themeLabel) {
+      themeLabel.textContent = theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro";
     }
   }
 

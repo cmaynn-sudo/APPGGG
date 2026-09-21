@@ -23,7 +23,7 @@ LAST_BACKUP_AT = ""
 LAST_RESTORE_AT = ""
 
 
-def config() -> dict[str, str]:
+def github_config() -> dict[str, str]:
     repo = (os.environ.get("GITHUB_BACKUP_REPO") or "").strip()
     token = (os.environ.get("GITHUB_BACKUP_TOKEN") or "").strip()
     return {
@@ -35,25 +35,67 @@ def config() -> dict[str, str]:
     }
 
 
+def r2_config() -> dict[str, str]:
+    account_id = (os.environ.get("R2_ACCOUNT_ID") or "").strip()
+    endpoint = (os.environ.get("R2_ENDPOINT_URL") or "").strip().rstrip("/")
+    if not endpoint and account_id:
+        endpoint = f"https://{account_id}.r2.cloudflarestorage.com"
+    return {
+        "endpoint": endpoint,
+        "access_key": (os.environ.get("R2_ACCESS_KEY_ID") or "").strip(),
+        "secret_key": (os.environ.get("R2_SECRET_ACCESS_KEY") or "").strip(),
+        "bucket": (os.environ.get("R2_BUCKET_NAME") or "").strip(),
+        "key": (os.environ.get("R2_OBJECT_KEY") or "recepcion-state/state.zip").strip("/"),
+        "region": (os.environ.get("R2_REGION") or "auto").strip(),
+    }
+
+
+def storage_backend() -> str:
+    r2 = r2_config()
+    if all(r2[key] for key in ("endpoint", "access_key", "secret_key", "bucket", "key")):
+        return "r2"
+    github = github_config()
+    if github["repo"] and github["token"]:
+        return "github"
+    return ""
+
+
 def is_configured() -> bool:
-    cfg = config()
-    return bool(cfg["repo"] and cfg["token"])
+    return bool(storage_backend())
 
 
 def should_restore_on_start() -> bool:
-    raw = os.environ.get("GITHUB_BACKUP_RESTORE_ON_START")
+    raw = os.environ.get("PERSISTENCE_RESTORE_ON_START")
+    if raw is None:
+        raw = os.environ.get("GITHUB_BACKUP_RESTORE_ON_START")
     if raw is not None:
         return raw.strip().lower() in {"1", "true", "yes", "si", "on"}
     return os.environ.get("RENDER", "").strip().lower() == "true"
 
 
 def runtime_status(data_dir: Path | None = None) -> dict[str, Any]:
-    cfg = config()
+    backend = storage_backend()
+    github = github_config()
+    r2 = r2_config()
+    if backend == "r2":
+        provider = "Cloudflare R2"
+        location = f"{r2['bucket']} / {r2['key']}"
+    elif backend == "github":
+        provider = "GitHub"
+        location = f"{github['repo']} / {github['branch']} / {github['path']}"
+    else:
+        provider = "Sin configurar"
+        location = ""
     status = {
         "enabled": is_configured(),
-        "repo": cfg["repo"],
-        "branch": cfg["branch"],
-        "path": cfg["path"],
+        "backend": backend,
+        "provider": provider,
+        "location": location,
+        "repo": github["repo"],
+        "branch": github["branch"],
+        "path": github["path"],
+        "bucket": r2["bucket"],
+        "object_key": r2["key"],
         "restore_on_start": should_restore_on_start(),
         "last_backup_at": LAST_BACKUP_AT,
         "last_restore_at": LAST_RESTORE_AT,
@@ -76,7 +118,7 @@ def restore_state_if_configured(data_dir: Path, force: bool = False, once: bool 
         return "disabled"
     if (
         (data_dir / STORE_FILENAME).exists()
-        and os.environ.get("GITHUB_BACKUP_FORCE_RESTORE") != "true"
+        and os.environ.get("PERSISTENCE_FORCE_RESTORE", os.environ.get("GITHUB_BACKUP_FORCE_RESTORE", "")) != "true"
         and not force
     ):
         return "local-present"
@@ -94,8 +136,12 @@ def restore_state_if_configured(data_dir: Path, force: bool = False, once: bool 
         return "failed"
 
 
-def restore_state_from_github(data_dir: Path) -> str:
+def restore_state_from_remote(data_dir: Path) -> str:
     return restore_state_if_configured(data_dir, force=True, once=False)
+
+
+def restore_state_from_github(data_dir: Path) -> str:
+    return restore_state_from_remote(data_dir)
 
 
 def backup_state_if_configured(data_dir: Path) -> bool:
@@ -160,7 +206,9 @@ def safe_extract_target(root: Path, name: str) -> Path:
 
 
 def download_backup() -> bytes:
-    cfg = config()
+    if storage_backend() == "r2":
+        return download_r2_backup()
+    cfg = github_config()
     ensure_backup_branch(cfg)
     meta = github_json(
         "GET",
@@ -177,7 +225,10 @@ def download_backup() -> bytes:
 
 
 def upload_backup(archive: bytes) -> None:
-    cfg = config()
+    if storage_backend() == "r2":
+        upload_r2_backup(archive)
+        return
+    cfg = github_config()
     ensure_backup_branch(cfg)
     meta = github_json(
         "GET",
@@ -193,6 +244,51 @@ def upload_backup(archive: bytes) -> None:
     if meta:
         payload["sha"] = meta["sha"]
     github_json("PUT", f"/repos/{cfg['repo']}/contents/{urllib.parse.quote(cfg['path'])}", cfg, payload)
+
+
+def r2_client():
+    try:
+        import boto3
+        from botocore.config import Config
+    except ImportError as exc:
+        raise RuntimeError("Falta instalar boto3 para usar Cloudflare R2.") from exc
+
+    cfg = r2_config()
+    return boto3.client(
+        "s3",
+        endpoint_url=cfg["endpoint"],
+        aws_access_key_id=cfg["access_key"],
+        aws_secret_access_key=cfg["secret_key"],
+        region_name=cfg["region"],
+        config=Config(signature_version="s3v4", retries={"max_attempts": 3, "mode": "standard"}),
+    )
+
+
+def download_r2_backup() -> bytes:
+    cfg = r2_config()
+    try:
+        response = r2_client().get_object(Bucket=cfg["bucket"], Key=cfg["key"])
+    except Exception as exc:
+        response = getattr(exc, "response", {}) or {}
+        code = str(response.get("Error", {}).get("Code", ""))
+        if code in {"404", "NoSuchKey", "NotFound"}:
+            return b""
+        raise RuntimeError(f"Cloudflare R2 no pudo leer el respaldo: {exc}") from exc
+    return response["Body"].read()
+
+
+def upload_r2_backup(archive: bytes) -> None:
+    cfg = r2_config()
+    try:
+        r2_client().put_object(
+            Bucket=cfg["bucket"],
+            Key=cfg["key"],
+            Body=archive,
+            ContentType="application/zip",
+            Metadata={"updated-at": datetime.utcnow().isoformat(timespec="seconds") + "Z"},
+        )
+    except Exception as exc:
+        raise RuntimeError(f"Cloudflare R2 no pudo guardar el respaldo: {exc}") from exc
 
 
 def ensure_backup_branch(cfg: dict[str, str]) -> None:
