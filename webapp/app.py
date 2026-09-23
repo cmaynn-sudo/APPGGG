@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import io
 import mimetypes
 import os
@@ -40,6 +41,18 @@ PERSISTENCE_RECOVERY_PATHS = {
     "/respaldo/restaurar-remoto",
     "/respaldo/restaurar-github",
 }
+
+
+def static_asset_version() -> str:
+    digest = hashlib.sha256()
+    for filename in ("app.css", "print.css", "app.js"):
+        path = STATIC_DIR / filename
+        if path.exists():
+            digest.update(path.read_bytes())
+    return digest.hexdigest()[:12]
+
+
+ASSET_VERSION = static_asset_version()
 
 
 class RecepcionHandler(BaseHTTPRequestHandler):
@@ -649,11 +662,13 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             "user": self.current_user(),
             "request_path": self.path,
             "app_version": self.server_version,
+            "asset_version": ASSET_VERSION,
             "backup_status": persistence.runtime_status(data_store.DATA_DIR),
         }
         body = env.get_template("error.html").render(**payload).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -666,9 +681,11 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             payload.setdefault("backup_status", persistence.runtime_status(data_store.DATA_DIR))
         payload.setdefault("request_path", self.path)
         payload.setdefault("app_version", self.server_version)
+        payload.setdefault("asset_version", ASSET_VERSION)
         body = env.get_template(template_name).render(**payload).encode("utf-8")
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)

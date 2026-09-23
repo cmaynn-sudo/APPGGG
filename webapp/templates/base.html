@@ -9,9 +9,9 @@
       const savedTheme = localStorage.getItem("recepcion-theme") || "light";
       document.documentElement.dataset.theme = savedTheme;
     </script>
-    <link rel="stylesheet" href="/static/app.css">
-    <link rel="stylesheet" href="/static/print.css">
-    <script src="/static/app.js" defer></script>
+    <link rel="stylesheet" href="/static/app.css?v={{ asset_version }}">
+    <link rel="stylesheet" href="/static/print.css?v={{ asset_version }}">
+    <script src="/static/app.js?v={{ asset_version }}" defer></script>
   </head>
   <body class="{% if public %}public-body{% endif %}">
     {% if not public %}
