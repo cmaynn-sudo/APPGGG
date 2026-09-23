@@ -21,6 +21,7 @@ LAST_BACKUP_ERROR = ""
 LAST_RESTORE_ERROR = ""
 LAST_BACKUP_AT = ""
 LAST_RESTORE_AT = ""
+LAST_BACKUP_BYTES = 0
 
 
 def github_config() -> dict[str, str]:
@@ -64,6 +65,34 @@ def is_configured() -> bool:
     return bool(storage_backend())
 
 
+def is_required() -> bool:
+    raw = os.environ.get("PERSISTENCE_REQUIRED")
+    if raw is not None:
+        return raw.strip().lower() in {"1", "true", "yes", "si", "on"}
+    return os.environ.get("RENDER", "").strip().lower() == "true"
+
+
+def write_block_reason() -> str:
+    if not is_required():
+        return ""
+    if not is_configured():
+        return (
+            "El almacenamiento persistente no está configurado. Los cambios están bloqueados para evitar "
+            "que desaparezcan cuando Render se reinicie. Configura Cloudflare R2 en el módulo Almacenamiento."
+        )
+    if LAST_RESTORE_ERROR:
+        return (
+            "La restauración del respaldo externo falló y no es seguro guardar sobre un estado incompleto. "
+            f"Detalle: {LAST_RESTORE_ERROR}"
+        )
+    if LAST_BACKUP_ERROR:
+        return (
+            "El último cambio no pudo confirmarse en el almacenamiento externo. Guarda el respaldo nuevamente "
+            f"desde el módulo Almacenamiento antes de continuar. Detalle: {LAST_BACKUP_ERROR}"
+        )
+    return ""
+
+
 def should_restore_on_start() -> bool:
     raw = os.environ.get("PERSISTENCE_RESTORE_ON_START")
     if raw is None:
@@ -88,6 +117,7 @@ def runtime_status(data_dir: Path | None = None) -> dict[str, Any]:
         location = ""
     status = {
         "enabled": is_configured(),
+        "required": is_required(),
         "backend": backend,
         "provider": provider,
         "location": location,
@@ -99,8 +129,11 @@ def runtime_status(data_dir: Path | None = None) -> dict[str, Any]:
         "restore_on_start": should_restore_on_start(),
         "last_backup_at": LAST_BACKUP_AT,
         "last_restore_at": LAST_RESTORE_AT,
+        "last_backup_bytes": LAST_BACKUP_BYTES,
         "last_backup_error": LAST_BACKUP_ERROR,
         "last_restore_error": LAST_RESTORE_ERROR,
+        "write_ready": not bool(write_block_reason()),
+        "write_block_reason": write_block_reason(),
     }
     if data_dir:
         status["local_store_exists"] = (data_dir / STORE_FILENAME).exists()
@@ -125,6 +158,7 @@ def restore_state_if_configured(data_dir: Path, force: bool = False, once: bool 
     try:
         archive = download_backup()
         if not archive:
+            LAST_RESTORE_ERROR = ""
             return "remote-empty"
         extract_backup(data_dir, archive)
         LAST_RESTORE_AT = datetime.utcnow().isoformat(timespec="seconds") + "Z"
@@ -145,7 +179,7 @@ def restore_state_from_github(data_dir: Path) -> str:
 
 
 def backup_state_if_configured(data_dir: Path) -> bool:
-    global LAST_BACKUP_AT, LAST_BACKUP_ERROR
+    global LAST_BACKUP_AT, LAST_BACKUP_BYTES, LAST_BACKUP_ERROR
     if not is_configured():
         return False
     try:
@@ -154,12 +188,31 @@ def backup_state_if_configured(data_dir: Path) -> bool:
             return False
         upload_backup(archive)
         LAST_BACKUP_AT = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+        LAST_BACKUP_BYTES = len(archive)
         LAST_BACKUP_ERROR = ""
         return True
     except Exception as exc:
         LAST_BACKUP_ERROR = str(exc)
         print(f"[recepcion] No se pudo guardar el respaldo externo: {exc}")
         return False
+
+
+def backup_state_or_raise(data_dir: Path) -> bool:
+    if not is_configured():
+        if is_required():
+            raise RuntimeError(
+                "El cambio no puede confirmarse porque el almacenamiento persistente no está configurado. "
+                "Configura Cloudflare R2 en Render antes de continuar."
+            )
+        return False
+    saved = backup_state_if_configured(data_dir)
+    if not saved and is_required():
+        detail = LAST_BACKUP_ERROR or "el proveedor no confirmó el guardado"
+        raise RuntimeError(
+            "El cambio quedó solamente en el servidor temporal y todavía no está protegido. "
+            f"Detalle: {detail}"
+        )
+    return saved
 
 
 def build_backup_archive(data_dir: Path) -> bytes:
@@ -178,8 +231,15 @@ def build_backup_archive(data_dir: Path) -> bytes:
 
 
 def import_backup_archive(data_dir: Path, archive: bytes) -> None:
+    global LAST_RESTORE_AT, LAST_RESTORE_ERROR
+    if is_required() and not is_configured():
+        raise RuntimeError(
+            "Configura primero el almacenamiento persistente antes de restaurar datos en Render."
+        )
     extract_backup(data_dir, archive)
-    backup_state_if_configured(data_dir)
+    LAST_RESTORE_AT = datetime.utcnow().isoformat(timespec="seconds") + "Z"
+    LAST_RESTORE_ERROR = ""
+    backup_state_or_raise(data_dir)
 
 
 def extract_backup(data_dir: Path, archive: bytes) -> None:
@@ -243,7 +303,10 @@ def upload_backup(archive: bytes) -> None:
     }
     if meta:
         payload["sha"] = meta["sha"]
-    github_json("PUT", f"/repos/{cfg['repo']}/contents/{urllib.parse.quote(cfg['path'])}", cfg, payload)
+    result = github_json("PUT", f"/repos/{cfg['repo']}/contents/{urllib.parse.quote(cfg['path'])}", cfg, payload)
+    stored_size = ((result or {}).get("content") or {}).get("size")
+    if stored_size is not None and int(stored_size) != len(archive):
+        raise RuntimeError("GitHub no confirmó el tamaño completo del respaldo enviado.")
 
 
 def r2_client():
@@ -280,13 +343,17 @@ def download_r2_backup() -> bytes:
 def upload_r2_backup(archive: bytes) -> None:
     cfg = r2_config()
     try:
-        r2_client().put_object(
+        client = r2_client()
+        client.put_object(
             Bucket=cfg["bucket"],
             Key=cfg["key"],
             Body=archive,
             ContentType="application/zip",
             Metadata={"updated-at": datetime.utcnow().isoformat(timespec="seconds") + "Z"},
         )
+        verification = client.head_object(Bucket=cfg["bucket"], Key=cfg["key"])
+        if int(verification.get("ContentLength", -1)) != len(archive):
+            raise RuntimeError("el tamaño verificado no coincide con el respaldo enviado")
     except Exception as exc:
         raise RuntimeError(f"Cloudflare R2 no pudo guardar el respaldo: {exc}") from exc
 

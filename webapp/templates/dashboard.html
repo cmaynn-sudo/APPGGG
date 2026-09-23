@@ -8,66 +8,142 @@
   <div>
     <p class="eyebrow">Control operativo</p>
     <h1>Dashboard de recepción</h1>
-    <p>Facturación y peso procesado, consolidados por mes.</p>
+    <p>Valores liquidados y pesos facturados a partir de los boletines.</p>
   </div>
-  <form class="period-filter" method="get" action="/">
-    <label for="dashboard-year">Año</label>
-    <select id="dashboard-year" name="year" onchange="this.form.submit()">
-      {% for year in dashboard.years %}
-      <option value="{{ year }}" {{ "selected" if year == dashboard.year else "" }}>{{ year }}</option>
-      {% endfor %}
-    </select>
-  </form>
+  <div class="dashboard-scope">
+    <strong>{{ dashboard.totals.boletines }}</strong>
+    <span>boletín(es) en el resultado</span>
+  </div>
 </header>
 
-<section class="kpi-grid" aria-label="Indicadores anuales">
+<form class="dashboard-filters" method="get" action="/" aria-label="Filtros del dashboard">
+  <div class="filter-heading">
+    <span class="filter-icon">{{ icons.icon("sliders") }}</span>
+    <div>
+      <strong>Filtros</strong>
+      <small>{{ dashboard.active_filter_count }} filtro(s) adicional(es)</small>
+    </div>
+  </div>
+  <label for="dashboard-year">Año
+    <select id="dashboard-year" name="year">
+      {% for year in dashboard.years %}
+      <option value="{{ year }}" {{ "selected" if year == dashboard.filters.year else "" }}>{{ year }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label for="dashboard-month">Mes
+    <select id="dashboard-month" name="month">
+      <option value="">Todos los meses</option>
+      {% for month in dashboard.month_options %}
+      <option value="{{ month.value }}" {{ "selected" if month.value == dashboard.filters.month else "" }}>{{ month.label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label for="dashboard-delivery">Entrega
+    <select id="dashboard-delivery" name="entrega">
+      <option value="">Todas las entregas</option>
+      {% for delivery in dashboard.delivery_options %}
+      <option value="{{ delivery.value }}" {{ "selected" if delivery.value == dashboard.filters.entrega else "" }}>{{ delivery.label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label for="dashboard-provider">Proveedor
+    <select id="dashboard-provider" name="proveedor">
+      <option value="">Todos los proveedores</option>
+      {% for provider in dashboard.provider_options %}
+      <option value="{{ provider }}" {{ "selected" if provider == dashboard.filters.proveedor else "" }}>{{ provider }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <div class="filter-actions">
+    <button class="button button-small" type="submit" data-tooltip="Aplicar los filtros seleccionados">
+      {{ icons.icon("sliders") }}<span>Aplicar</span>
+    </button>
+    <a class="icon-action" href="/?year={{ dashboard.year }}" data-tooltip="Limpiar filtros de mes, entrega y proveedor" aria-label="Limpiar filtros">
+      {{ icons.icon("x") }}
+    </a>
+  </div>
+</form>
+
+<section class="financial-kpi-grid" aria-label="Valores financieros de los boletines">
   <article class="kpi-card kpi-money">
     <span class="kpi-icon">{{ icons.icon("dollar") }}</span>
     <div>
-      <small>Facturación total</small>
-      <strong>{{ dashboard.totals.facturacion_display }}</strong>
-      <span>{{ dashboard.totals.boletines }} boletín(es) en {{ dashboard.year }}</span>
+      <small>Subtotal</small>
+      <strong>{{ dashboard.totals.subtotal_display }}</strong>
+      <span>Valor total metales</span>
     </div>
   </article>
-  <article class="kpi-card kpi-initial">
-    <span class="kpi-icon">{{ icons.icon("weight") }}</span>
+  <article class="kpi-card kpi-money kpi-payable">
+    <span class="kpi-icon">{{ icons.icon("receipt") }}</span>
     <div>
-      <small>Gramos iniciales</small>
-      <strong>{{ dashboard.totals.peso_inicial_display }} g</strong>
-      <span>Peso recibido facturado</span>
+      <small>Valor a pagar</small>
+      <strong>{{ dashboard.totals.valor_a_pagar_display }}</strong>
+      <span>Después de retención</span>
     </div>
   </article>
-  <article class="kpi-card kpi-final">
-    <span class="kpi-icon">{{ icons.icon("trending") }}</span>
+  <article class="kpi-card kpi-money kpi-gold">
+    <span class="kpi-icon">{{ icons.icon("coins") }}</span>
     <div>
-      <small>Gramos finales</small>
-      <strong>{{ dashboard.totals.peso_final_display }} g</strong>
-      <span>Peso fundido facturado</span>
+      <small>Regalías oro</small>
+      <strong>{{ dashboard.totals.regalia_oro_display }}</strong>
+      <span>Total liquidado</span>
     </div>
   </article>
-  <article class="kpi-card kpi-deliveries">
-    <span class="kpi-icon">{{ icons.icon("folder") }}</span>
+  <article class="kpi-card kpi-money kpi-silver">
+    <span class="kpi-icon">{{ icons.icon("coins") }}</span>
     <div>
-      <small>Entregas facturadas</small>
-      <strong>{{ dashboard.totals.entregas }}</strong>
-      <span>{{ dashboard.totals.transferido_display }} transferido</span>
+      <small>Regalías plata</small>
+      <strong>{{ dashboard.totals.regalia_plata_display }}</strong>
+      <span>Total liquidado</span>
     </div>
   </article>
+  <article class="kpi-card kpi-money kpi-paid">
+    <span class="kpi-icon">{{ icons.icon("badge-check") }}</span>
+    <div>
+      <small>Valor pagado</small>
+      <strong>{{ dashboard.totals.valor_pagado_display }}</strong>
+      <span>Valor a transferir</span>
+    </div>
+  </article>
+</section>
+
+<section class="operational-summary" aria-label="Pesos y documentos del resultado">
+  <div>
+    <span class="summary-icon kpi-initial">{{ icons.icon("weight") }}</span>
+    <small>Gramos iniciales</small>
+    <strong>{{ dashboard.totals.peso_inicial_display }} g</strong>
+  </div>
+  <div>
+    <span class="summary-icon kpi-final">{{ icons.icon("trending") }}</span>
+    <small>Gramos finales</small>
+    <strong>{{ dashboard.totals.peso_final_display }} g</strong>
+  </div>
+  <div>
+    <span class="summary-icon kpi-deliveries">{{ icons.icon("folder") }}</span>
+    <small>Entregas</small>
+    <strong>{{ dashboard.totals.entregas }}</strong>
+  </div>
+  <div>
+    <span class="summary-icon">{{ icons.icon("receipt") }}</span>
+    <small>Boletines</small>
+    <strong>{{ dashboard.totals.boletines }}</strong>
+  </div>
 </section>
 
 <section class="dashboard-layout">
   <div class="panel revenue-panel">
     <div class="panel-title">
       <div>
-        <h2>Facturación mensual</h2>
-        <p>Valor total de metales por mes</p>
+        <h2>Subtotal mensual</h2>
+        <p>Valor total de metales de los boletines filtrados</p>
       </div>
       <span>{{ dashboard.year }}</span>
     </div>
-    <div class="revenue-chart" role="img" aria-label="Facturación mensual de {{ dashboard.year }}">
+    <div class="revenue-chart" style="--month-count: {{ dashboard.months|length }}" role="img" aria-label="Subtotal mensual de {{ dashboard.year }}">
       {% for month in dashboard.months %}
-      <div class="chart-column" title="{{ month.name }}: {{ month.facturacion_display }}">
-        <span class="chart-value">{{ month.facturacion_display if month.facturacion else "" }}</span>
+      <div class="chart-column" title="{{ month.name }}: {{ month.subtotal_display }}">
+        <span class="chart-value">{{ month.subtotal_display if month.subtotal else "" }}</span>
         <div class="chart-track"><i style="height: {{ month.bar_percent }}%"></i></div>
         <strong>{{ month.name[:3] }}</strong>
       </div>
@@ -81,12 +157,12 @@
         <h2>Estado del sistema</h2>
         <p>Datos y almacenamiento</p>
       </div>
-      <span class="status-dot {{ 'online' if backup_status.enabled else 'warning' }}"></span>
+      <span class="status-dot {{ 'online' if backup_status.enabled and not backup_status.last_backup_error else 'warning' }}"></span>
     </div>
     <dl class="status-list">
-      <div><dt>Almacenamiento</dt><dd>{{ backup_status.provider }}</dd></div>
+      <div><dt>Respaldo de cambios</dt><dd>{{ "Configurado" if backup_status.enabled else ("Bloqueado" if backup_status.required else "Solo local") }}</dd></div>
+      <div><dt>Proveedor</dt><dd>{{ backup_status.provider }}</dd></div>
       <div><dt>Entregas visibles</dt><dd>{{ document_folders|length }}</dd></div>
-      <div><dt>Sociedades</dt><dd>{{ sociedades|length }}</dd></div>
       <div><dt>Datos históricos</dt><dd>{{ "Incluidos" if dashboard.has_historical else "Sin boletines importados" }}</dd></div>
     </dl>
     <a class="text-action" href="/respaldo">
@@ -98,7 +174,7 @@
     <div class="panel-title">
       <div>
         <h2>Totales por mes</h2>
-        <p>Solo se contabilizan registros que ya generan boletín.</p>
+        <p>Las cifras conservan los nombres y cálculos del boletín.</p>
       </div>
       <span>{{ dashboard.totals.boletines }} documento(s)</span>
     </div>
@@ -108,10 +184,13 @@
           <tr>
             <th>Mes</th>
             <th>Boletines</th>
-            <th>Facturación</th>
+            <th>Subtotal</th>
+            <th>Valor a pagar</th>
+            <th>Regalías oro</th>
+            <th>Regalías plata</th>
+            <th>Valor pagado</th>
             <th>Gramos iniciales</th>
             <th>Gramos finales</th>
-            <th>Valor transferido</th>
           </tr>
         </thead>
         <tbody>
@@ -119,21 +198,27 @@
           <tr class="{{ 'empty-row' if not month.boletines else '' }}">
             <td><strong>{{ month.name }}</strong></td>
             <td>{{ month.boletines }}</td>
-            <td>{{ month.facturacion_display }}</td>
+            <td>{{ month.subtotal_display }}</td>
+            <td>{{ month.valor_a_pagar_display }}</td>
+            <td>{{ month.regalia_oro_display }}</td>
+            <td>{{ month.regalia_plata_display }}</td>
+            <td>{{ month.valor_pagado_display }}</td>
             <td>{{ month.peso_inicial_display }} g</td>
             <td>{{ month.peso_final_display }} g</td>
-            <td>{{ month.transferido_display }}</td>
           </tr>
           {% endfor %}
         </tbody>
         <tfoot>
           <tr>
-            <th>Total {{ dashboard.year }}</th>
+            <th>{{ "Total filtrado" if dashboard.active_filter_count else "Total " ~ dashboard.year }}</th>
             <th>{{ dashboard.totals.boletines }}</th>
-            <th>{{ dashboard.totals.facturacion_display }}</th>
+            <th>{{ dashboard.totals.subtotal_display }}</th>
+            <th>{{ dashboard.totals.valor_a_pagar_display }}</th>
+            <th>{{ dashboard.totals.regalia_oro_display }}</th>
+            <th>{{ dashboard.totals.regalia_plata_display }}</th>
+            <th>{{ dashboard.totals.valor_pagado_display }}</th>
             <th>{{ dashboard.totals.peso_inicial_display }} g</th>
             <th>{{ dashboard.totals.peso_final_display }} g</th>
-            <th>{{ dashboard.totals.transferido_display }}</th>
           </tr>
         </tfoot>
       </table>
@@ -146,8 +231,8 @@
   <div class="panel recent-panel">
     <div class="panel-title">
       <div>
-        <h2>Facturación reciente</h2>
-        <p>Últimos boletines contabilizados</p>
+        <h2>Boletines recientes</h2>
+        <p>Últimos documentos dentro del resultado filtrado</p>
       </div>
       <a class="text-action" href="/boletines">Ver boletines</a>
     </div>
@@ -160,15 +245,15 @@
           <small>{{ record.sociedad or record.source_label }} · {{ record.date }}</small>
         </div>
         <div class="recent-amount">
-          <strong>{{ record.facturacion_display }}</strong>
-          <small>{{ record.peso_final_display }} g finales</small>
+          <strong>{{ record.subtotal_display }}</strong>
+          <small>{{ record.valor_pagado_display }} pagado</small>
         </div>
       </div>
       {% else %}
       <div class="empty-state">
         {{ icons.icon("receipt") }}
-        <strong>Aún no hay boletines facturados en {{ dashboard.year }}</strong>
-        <span>Completa las leyes y los parámetros de una entrega para verla aquí.</span>
+        <strong>No hay boletines para los filtros seleccionados</strong>
+        <span>Prueba otra entrega, proveedor, mes o año.</span>
       </div>
       {% endfor %}
     </div>

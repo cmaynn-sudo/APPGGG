@@ -60,7 +60,9 @@ Render Free no conserva archivos locales después de reinicios, reposos o deploy
 3. Agrega en Render las variables `R2_ENDPOINT_URL`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` y `R2_BUCKET_NAME`.
 4. Conserva `R2_OBJECT_KEY=recepcion-state/state.zip` y `PERSISTENCE_RESTORE_ON_START=true`.
 
-La aplicación guarda automáticamente un ZIP con el estado y los archivos subidos, y lo restaura al arrancar. Si R2 está configurado, tiene prioridad. El respaldo anterior en GitHub se mantiene como alternativa para no interrumpir instalaciones existentes.
+La aplicación guarda automáticamente un ZIP con el estado y los archivos subidos, verifica que el proveedor haya recibido el archivo y lo restaura al arrancar. Si R2 está configurado, tiene prioridad. El respaldo anterior en GitHub se mantiene como alternativa para no interrumpir instalaciones existentes.
+
+En Render, `PERSISTENCE_REQUIRED=true` impide que una modificación aparezca como guardada cuando no existe un proveedor externo o cuando el último respaldo falló. No es una autorización adicional: después del login el flujo sigue siendo normal, pero una falla de almacenamiento se muestra de forma explícita y las siguientes escrituras quedan detenidas hasta guardar o restaurar el respaldo.
 
 También queda disponible el módulo `Respaldo` dentro de la app para:
 
@@ -90,12 +92,16 @@ GITHUB_BACKUP_PATH=recepcion-state/state.zip
 
 ## Dashboard
 
-El dashboard suma por año y por mes:
+El dashboard se puede filtrar por año, mes, entrega y proveedor. Suma por mes y para toda la selección:
 
-- Valor total de metales facturado.
+- Subtotal, equivalente al valor total de metales.
+- Valor a pagar.
+- Regalías de oro.
+- Regalías de plata.
+- Valor pagado, equivalente al valor a transferir.
 - Gramos iniciales facturados.
 - Gramos finales facturados.
-- Valor transferido, entregas y cantidad de boletines.
+- Entregas y cantidad de boletines.
 
 Las entregas creadas en la web se calculan directamente con las mismas fórmulas del boletín. Al subir una carpeta histórica, la aplicación también lee sus PDFs de boletines y evita contabilizar duplicados.
 
@@ -131,6 +137,7 @@ ADMIN_PASSWORD=admin
 SESSION_SECRET=un-secreto-largo-y-aleatorio
 MAX_UPLOAD_MB=25
 PERSISTENCE_RESTORE_ON_START=true
+PERSISTENCE_REQUIRED=true
 R2_ENDPOINT_URL=https://ACCOUNT_ID.r2.cloudflarestorage.com
 R2_ACCESS_KEY_ID=credencial-r2
 R2_SECRET_ACCESS_KEY=secreto-r2

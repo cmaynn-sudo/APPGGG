@@ -99,9 +99,17 @@
           </a>
         </div>
       </header>
-      {% if backup_status is defined and not backup_status.enabled %}
+      {% if backup_status is defined and backup_status.required and not backup_status.write_ready %}
+      <a class="notice danger backup-warning" href="/respaldo">
+        {{ backup_status.write_block_reason }}
+      </a>
+      {% elif backup_status is defined and (backup_status.last_backup_error or backup_status.last_restore_error) %}
+      <a class="notice danger backup-warning" href="/respaldo">
+        El almacenamiento externo reportó un error. Revisa el módulo Almacenamiento antes de continuar.
+      </a>
+      {% elif backup_status is defined and not backup_status.enabled %}
       <a class="notice warning backup-warning" href="/respaldo">
-        El almacenamiento persistente aún no está configurado. Abre este módulo para evitar pérdidas después de un reinicio o deploy.
+        Los datos se guardan solamente en este equipo. Configura almacenamiento externo antes de usar la aplicación en Render.
       </a>
       {% endif %}
       {% endif %}

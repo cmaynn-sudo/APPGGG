@@ -84,17 +84,25 @@ def load_store() -> dict[str, Any]:
         created_empty = True
     else:
         created_empty = False
-    should_sync_backup = not created_empty and restore_status not in {"failed", "remote-empty"}
+    should_sync_backup = (
+        persistence.is_configured()
+        and not created_empty
+        and restore_status not in {"failed", "remote-empty"}
+    )
     return normalize_store(json.loads(STORE_PATH.read_text(encoding="utf-8")), sync_backup=should_sync_backup)
 
 
 def save_store(store: dict[str, Any], sync_backup: bool = True) -> None:
+    if sync_backup:
+        storage_error = persistence.write_block_reason()
+        if storage_error:
+            raise RuntimeError(storage_error)
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     tmp = STORE_PATH.with_suffix(".tmp")
     tmp.write_text(json.dumps(store, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
     tmp.replace(STORE_PATH)
     if sync_backup:
-        persistence.backup_state_if_configured(DATA_DIR)
+        persistence.backup_state_or_raise(DATA_DIR)
 
 
 def get_sociedad(store: dict[str, Any], nombre: str) -> dict[str, Any] | None:
@@ -514,6 +522,9 @@ def get_local_folder(folder_id: str) -> dict[str, Any] | None:
 
 
 def create_local_folder_from_upload(folder_name: str, files: list[dict[str, object]]) -> dict[str, Any]:
+    storage_error = persistence.write_block_reason()
+    if storage_error:
+        raise RuntimeError(storage_error)
     valid_files = [
         file_info
         for file_info in files
@@ -550,7 +561,7 @@ def create_local_folder_from_upload(folder_name: str, files: list[dict[str, obje
     except Exception:
         delete_local_folder(folder_id)
         raise
-    persistence.backup_state_if_configured(DATA_DIR)
+    persistence.backup_state_or_raise(DATA_DIR)
     return get_local_folder(folder_id) or folder
 
 
@@ -586,6 +597,10 @@ def save_uploaded_file(
     category: str = "",
     sync_backup: bool = True,
 ) -> dict[str, Any]:
+    if sync_backup:
+        storage_error = persistence.write_block_reason()
+        if storage_error:
+            raise RuntimeError(storage_error)
     if not content:
         raise ValueError("El archivo está vacío.")
     file_id = uuid.uuid4().hex

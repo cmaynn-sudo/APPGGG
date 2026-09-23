@@ -17,7 +17,8 @@ PDF_CACHE: dict[tuple[str, int, int], dict[str, Any] | None] = {}
 MONTH_NUMBER = {name: number for number, name in core.MESES_ES.items()}
 
 
-def dashboard_summary(requested_year: str = "") -> dict[str, Any]:
+def dashboard_summary(requested_filters: dict[str, str] | None = None) -> dict[str, Any]:
+    filters = {key: str(value or "").strip() for key, value in (requested_filters or {}).items()}
     store = data_store.load_store()
     folders = document_library.all_folders()
     records = structured_billing_records(store)
@@ -36,42 +37,75 @@ def dashboard_summary(requested_year: str = "") -> dict[str, Any]:
 
     current_year = str(date.today().year)
     years = sorted({str(record.get("year")) for record in records if record.get("year")}, reverse=True)
-    selected_year = requested_year if requested_year in years else current_year if current_year in years else (years[0] if years else current_year)
+    selected_year = filters.get("year", "")
+    if selected_year not in years:
+        selected_year = current_year if current_year in years else (years[0] if years else current_year)
     if selected_year not in years:
         years.insert(0, selected_year)
 
-    selected = [record for record in records if str(record.get("year")) == selected_year]
+    year_records = [record for record in records if str(record.get("year")) == selected_year]
+    delivery_options = unique_options(year_records, "delivery_id", "delivery_label")
+    provider_options = sorted(
+        {str(record.get("sociedad", "")).strip() for record in year_records if str(record.get("sociedad", "")).strip()}
+    )
+
+    selected_month = filters.get("month", "")
+    if selected_month not in {str(number) for number in core.MESES_ES}:
+        selected_month = ""
+    selected_delivery = filters.get("entrega", "")
+    if selected_delivery not in {option["value"] for option in delivery_options}:
+        selected_delivery = ""
+    selected_provider = filters.get("proveedor", "")
+    if selected_provider not in provider_options:
+        selected_provider = ""
+
+    selected = list(year_records)
+    if selected_month:
+        selected = [record for record in selected if record.get("month_number") == int(selected_month)]
+    if selected_delivery:
+        selected = [record for record in selected if str(record.get("delivery_id", "")) == selected_delivery]
+    if selected_provider:
+        selected = [record for record in selected if str(record.get("sociedad", "")) == selected_provider]
+
+    month_numbers = [int(selected_month)] if selected_month else list(core.MESES_ES)
     months = []
-    for number, month_name in core.MESES_ES.items():
+    for number in month_numbers:
         rows = [record for record in selected if record.get("month_number") == number]
-        months.append(
-            {
-                "number": number,
-                "name": month_name.capitalize(),
-                "facturacion": sum(record.get("facturacion", 0.0) for record in rows),
-                "transferido": sum(record.get("transferido", 0.0) for record in rows),
-                "peso_inicial": sum(record.get("peso_inicial", 0.0) for record in rows),
-                "peso_final": sum(record.get("peso_final", 0.0) for record in rows),
-                "boletines": len(rows),
-            }
-        )
+        summary = summarize_rows(rows)
+        summary.update({"number": number, "name": core.MESES_ES[number].capitalize()})
+        months.append(summary)
 
     totals = summarize_rows(selected)
-    max_facturacion = max((month["facturacion"] for month in months), default=0.0)
+    max_subtotal = max((month["subtotal"] for month in months), default=0.0)
     for month in months:
-        month["bar_percent"] = round(month["facturacion"] / max_facturacion * 100, 2) if max_facturacion else 0
+        month["bar_percent"] = round(month["subtotal"] / max_subtotal * 100, 2) if max_subtotal else 0
         format_summary(month)
     format_summary(totals)
 
     recent = sorted(selected, key=lambda row: (row.get("date", ""), row.get("documento", "")), reverse=True)[:6]
     for record in recent:
-        record["facturacion_display"] = calculations.fmt_money(record.get("facturacion", 0.0))
+        record["subtotal_display"] = calculations.fmt_money(record.get("subtotal", 0.0))
+        record["valor_pagado_display"] = calculations.fmt_money(record.get("valor_pagado", 0.0))
         record["peso_final_display"] = calculations.fmt_number(record.get("peso_final", 0.0))
 
+    active_filter_count = sum(bool(value) for value in (selected_month, selected_delivery, selected_provider))
     return {
         "year": selected_year,
         "years": years,
         "months": months,
+        "month_options": [
+            {"value": str(number), "label": month_name.capitalize()}
+            for number, month_name in core.MESES_ES.items()
+        ],
+        "delivery_options": delivery_options,
+        "provider_options": provider_options,
+        "filters": {
+            "year": selected_year,
+            "month": selected_month,
+            "entrega": selected_delivery,
+            "proveedor": selected_provider,
+        },
+        "active_filter_count": active_filter_count,
         "totals": totals,
         "records": selected,
         "recent": recent,
@@ -105,13 +139,17 @@ def structured_billing_records(store: dict[str, Any]) -> list[dict[str, Any]]:
                     "source_label": "Web",
                     "folder_id": entrega.get("id", ""),
                     "delivery_id": entrega.get("id", ""),
+                    "delivery_label": entrega.get("name") or f"Entrega {entrega.get('numero', '')}",
                     "documento": item.get("barra") or item.get("codigo", ""),
                     "sociedad": item.get("sociedad") or item.get("proveedor", ""),
                     "date": entrega.get("fecha", ""),
                     "year": year,
                     "month_number": month_number,
-                    "facturacion": calculations.as_float(boletin.get("valor_total_metales_value")),
-                    "transferido": calculations.as_float(boletin.get("valor_transferir_value")),
+                    "subtotal": calculations.as_float(boletin.get("valor_total_metales_value")),
+                    "valor_a_pagar": calculations.as_float(boletin.get("valor_a_pagar_value")),
+                    "regalia_oro": calculations.as_float(boletin.get("regalia_oro_total_value")),
+                    "regalia_plata": calculations.as_float(boletin.get("regalia_plata_total_value")),
+                    "valor_pagado": calculations.as_float(boletin.get("valor_transferir_value")),
                     "peso_inicial": calculations.as_float(boletin.get("peso_ini_value")),
                     "peso_final": calculations.as_float(boletin.get("peso_fin_value")),
                 }
@@ -143,6 +181,7 @@ def historical_billing_records(folders: list[dict[str, Any]]):
                     "source_label": "Carpeta subida" if source == "local" else "Histórico importado",
                     "folder_id": folder.get("id", ""),
                     "delivery_id": folder.get("id", ""),
+                    "delivery_label": folder.get("name", "Entrega importada"),
                     "sociedad": parsed.get("sociedad", ""),
                 }
             )
@@ -150,7 +189,11 @@ def historical_billing_records(folders: list[dict[str, Any]]):
                 parsed["date"] = folder.get("date", "")
             parsed_date = parse_iso_date(parsed.get("date", ""))
             parsed["year"] = str(parsed_date.year if parsed_date else folder.get("year", ""))
-            parsed["month_number"] = parsed_date.month if parsed_date else MONTH_NUMBER.get(str(folder.get("month", "")).upper())
+            parsed["month_number"] = (
+                parsed_date.month
+                if parsed_date
+                else MONTH_NUMBER.get(str(folder.get("month", "")).upper())
+            )
             yield parsed, True
 
 
@@ -186,8 +229,8 @@ def parse_billing_pdf(path: Path) -> dict[str, Any] | None:
         text,
         flags=re.IGNORECASE,
     )
-    billed = find_number(text, r"VALOR\s+TOTAL\s+METALES\s*\(COP\)\s*\$?\s*([0-9][0-9.,]*)")
-    if not received or billed is None:
+    subtotal = find_number(text, r"VALOR\s+TOTAL\s+METALES\s*\(COP\)\s*\$?\s*([0-9][0-9.,]*)")
+    if not received or subtotal is None:
         PDF_CACHE[cache_key] = None
         return None
 
@@ -198,12 +241,25 @@ def parse_billing_pdf(path: Path) -> dict[str, Any] | None:
             parsed_date = datetime.strptime(raw_date, "%d/%m/%Y").date().isoformat()
         except ValueError:
             parsed_date = ""
+
+    royalties = re.search(
+        r"REGALIAS\s+ADEUDADAS\s+POR\s+EL\s+PROVEEDOR.*?ORO\s+PLATA\s+\$\s*([0-9][0-9.,]*)\s+\$\s*([0-9][0-9.,]*)",
+        text,
+        flags=re.IGNORECASE,
+    )
     result = {
         "documento": find_text(text, r"DOCUMENTO:\s*([A-Z0-9Ñ._-]+)"),
         "sociedad": find_text(text, r"PROVEEDOR:\s*(.*?)\s+NIT:"),
         "date": parsed_date,
-        "facturacion": billed,
-        "transferido": find_number(text, r"VALOR\s+A\s+TRANSFERIR\s*\$?\s*([0-9][0-9.,]*)") or 0.0,
+        "subtotal": subtotal,
+        "valor_a_pagar": find_number(text, r"VALOR\s+A\s+PAGAR\s*\(COP\)\s*\$?\s*([0-9][0-9.,]*)") or 0.0,
+        "regalia_oro": parse_number(royalties.group(1)) if royalties else 0.0,
+        "regalia_plata": parse_number(royalties.group(2)) if royalties else 0.0,
+        "valor_pagado": find_number(
+            text,
+            r"VALOR\s+(?:A\s+TRANSFERIR|PAGADO)\s*\$?\s*([0-9][0-9.,]*)",
+        )
+        or 0.0,
         "peso_inicial": parse_number(received.group(1)),
         "peso_final": parse_number(received.group(2)),
     }
@@ -239,16 +295,32 @@ def record_key(record: dict[str, Any]) -> tuple[str, str, int, int, int]:
     return (
         str(record.get("documento", "")).strip().upper(),
         str(record.get("date", "")),
-        round(calculations.as_float(record.get("facturacion"))),
+        round(calculations.as_float(record.get("subtotal"))),
         round(calculations.as_float(record.get("peso_inicial")) * 100),
         round(calculations.as_float(record.get("peso_final")) * 100),
     )
 
 
+def unique_options(records: list[dict[str, Any]], value_key: str, label_key: str) -> list[dict[str, str]]:
+    options: dict[str, str] = {}
+    for record in records:
+        value = str(record.get(value_key, "")).strip()
+        if not value:
+            continue
+        options[value] = str(record.get(label_key, "")).strip() or value
+    return [
+        {"value": value, "label": label}
+        for value, label in sorted(options.items(), key=lambda item: item[1], reverse=True)
+    ]
+
+
 def summarize_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return {
-        "facturacion": sum(record.get("facturacion", 0.0) for record in rows),
-        "transferido": sum(record.get("transferido", 0.0) for record in rows),
+        "subtotal": sum(record.get("subtotal", 0.0) for record in rows),
+        "valor_a_pagar": sum(record.get("valor_a_pagar", 0.0) for record in rows),
+        "regalia_oro": sum(record.get("regalia_oro", 0.0) for record in rows),
+        "regalia_plata": sum(record.get("regalia_plata", 0.0) for record in rows),
+        "valor_pagado": sum(record.get("valor_pagado", 0.0) for record in rows),
         "peso_inicial": sum(record.get("peso_inicial", 0.0) for record in rows),
         "peso_final": sum(record.get("peso_final", 0.0) for record in rows),
         "boletines": len(rows),
@@ -257,7 +329,7 @@ def summarize_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def format_summary(summary: dict[str, Any]) -> None:
-    summary["facturacion_display"] = calculations.fmt_money(summary.get("facturacion", 0.0))
-    summary["transferido_display"] = calculations.fmt_money(summary.get("transferido", 0.0))
+    for key in ("subtotal", "valor_a_pagar", "regalia_oro", "regalia_plata", "valor_pagado"):
+        summary[f"{key}_display"] = calculations.fmt_money(summary.get(key, 0.0))
     summary["peso_inicial_display"] = calculations.fmt_number(summary.get("peso_inicial", 0.0))
     summary["peso_final_display"] = calculations.fmt_number(summary.get("peso_final", 0.0))

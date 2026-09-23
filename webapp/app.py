@@ -33,6 +33,13 @@ env = Environment(
 )
 
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_MB", "25")) * 1024 * 1024
+PERSISTENCE_RECOVERY_PATHS = {
+    "/respaldo/importar",
+    "/respaldo/guardar-remoto",
+    "/respaldo/guardar-github",
+    "/respaldo/restaurar-remoto",
+    "/respaldo/restaurar-github",
+}
 
 
 class RecepcionHandler(BaseHTTPRequestHandler):
@@ -134,6 +141,12 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 return
             if not self.require_login():
                 return
+            if path not in PERSISTENCE_RECOVERY_PATHS:
+                data_store.load_store()
+                storage_error = persistence.write_block_reason()
+                if storage_error:
+                    self.render_error(storage_error, HTTPStatus.SERVICE_UNAVAILABLE)
+                    return
 
             if path == "/entregas/upload":
                 fields, files = self.read_multipart_form()
@@ -209,7 +222,12 @@ class RecepcionHandler(BaseHTTPRequestHandler):
         store = data_store.load_store()
         folders = document_library.all_folders()
         imported = [folder for folder in folders if folder.get("source") != "web"]
-        dashboard = analytics.dashboard_summary(query.get("year", [""])[0])
+        dashboard = analytics.dashboard_summary(
+            {
+                key: query.get(key, [""])[0]
+                for key in ("year", "month", "entrega", "proveedor")
+            }
+        )
         self.render(
             "dashboard.html",
             {
@@ -631,6 +649,7 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             "user": self.current_user(),
             "request_path": self.path,
             "app_version": self.server_version,
+            "backup_status": persistence.runtime_status(data_store.DATA_DIR),
         }
         body = env.get_template("error.html").render(**payload).encode("utf-8")
         self.send_response(status)

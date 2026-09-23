@@ -217,6 +217,8 @@ def boletin_context(
             "peso_fin_value": peso_fin,
             "valor_total_metales_value": valor_total,
             "valor_a_pagar_value": valor_pagar,
+            "regalia_oro_total_value": regalia_oro_total,
+            "regalia_plata_total_value": regalia_plata_total,
             "valor_transferir_value": valor_transferir,
             "perdida": fmt_number(perdida),
             "porcentaje_perdida": fmt_percent(porcentaje_perdida) if porcentaje_perdida != "" else "",
