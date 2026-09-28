@@ -130,6 +130,14 @@ def get_boletin_settings(store: dict[str, Any] | None = None) -> dict[str, Any]:
     return settings
 
 
+def get_entrega_boletin_settings(entrega: dict[str, Any], store: dict[str, Any] | None = None) -> dict[str, Any]:
+    settings = get_boletin_settings(store)
+    saved = entrega.get("boletin_settings") or {}
+    if isinstance(saved, dict):
+        settings.update({key: value for key, value in saved.items() if value not in (None, "")})
+    return settings
+
+
 def update_boletin_settings(form: dict[str, str]) -> dict[str, Any]:
     settings = {
         "precio_negociacion_porcentaje": normalize_percent_field(form.get("precio_negociacion_porcentaje", ""), "97,5"),
@@ -153,30 +161,90 @@ def normalize_percent_field(raw: str, fallback: str) -> str:
     return text.replace(".", ",")
 
 
-def create_entrega(numero: str) -> dict[str, Any]:
+def normalize_optional_number(raw: str, label: str) -> str:
+    value = str(raw or "").strip()
+    if not value:
+        return ""
+    try:
+        number = core.parse_decimal_input(value)
+    except ValueError as exc:
+        raise ValueError(f"{label} debe ser numérico.") from exc
+    text = f"{number:.8f}".rstrip("0").rstrip(".")
+    return text.replace(".", ",")
+
+
+def create_entrega(
+    numero: str,
+    fecha: str = "",
+    parametros: dict[str, str] | None = None,
+    boletin_settings: dict[str, str] | None = None,
+    reconstructed_from_folder_id: str = "",
+) -> dict[str, Any]:
     if not numero.strip():
         raise ValueError("Ingresa un número de entrega.")
+    raw_date = str(fecha or "").strip()
+    try:
+        delivery_date = date.fromisoformat(raw_date) if raw_date else date.today()
+    except ValueError as exc:
+        raise ValueError("La fecha de la entrega no es válida.") from exc
+
     store = load_store()
-    today = date.today()
+    month = core.MESES_ES[delivery_date.month]
+    raw_parameters = parametros or {}
+    royalty_month = str(raw_parameters.get("mes_regalias") or month).strip().upper()
+    if royalty_month not in core.MESES_ORDEN:
+        raise ValueError("El mes de regalías no es válido.")
     entrega = {
         "id": uuid.uuid4().hex,
         "numero": numero.strip(),
-        "fecha": today.isoformat(),
-        "year": str(today.year),
-        "month": core.MESES_ES[today.month],
-        "name": f"ENTREGA °{numero.strip()} - ({today.isoformat()})",
+        "fecha": delivery_date.isoformat(),
+        "year": str(delivery_date.year),
+        "month": month,
+        "name": f"ENTREGA °{numero.strip()} - ({delivery_date.isoformat()})",
         "items": [],
         "parametros": {
-            "mes_regalias": core.MESES_ES[today.month],
-            "dolar": "",
-            "oz_au": "",
-            "oz_ag": "",
+            "mes_regalias": royalty_month,
+            "dolar": normalize_optional_number(raw_parameters.get("dolar", ""), "El dólar"),
+            "oz_au": normalize_optional_number(raw_parameters.get("oz_au", ""), "La onza de oro"),
+            "oz_ag": normalize_optional_number(raw_parameters.get("oz_ag", ""), "La onza de plata"),
         },
     }
+    if boletin_settings is not None:
+        entrega["boletin_settings"] = {
+            "precio_negociacion_porcentaje": normalize_percent_field(
+                boletin_settings.get("precio_negociacion_porcentaje", ""),
+                get_boletin_settings(store)["precio_negociacion_porcentaje"],
+            ),
+            "retencion_porcentaje": normalize_percent_field(
+                boletin_settings.get("retencion_porcentaje", ""),
+                get_boletin_settings(store)["retencion_porcentaje"],
+            ),
+        }
+    if reconstructed_from_folder_id:
+        entrega["historical_reconstruction"] = True
+        entrega["reconstructed_from_folder_id"] = reconstructed_from_folder_id
     store.setdefault("entregas", []).append(entrega)
     store["active_entrega_id"] = entrega["id"]
     save_store(store)
     return entrega
+
+
+def create_historical_entrega(form: dict[str, str]) -> dict[str, Any]:
+    return create_entrega(
+        form.get("numero", ""),
+        form.get("fecha", ""),
+        parametros={
+            "mes_regalias": form.get("mes_regalias", ""),
+            "dolar": form.get("dolar", ""),
+            "oz_au": form.get("oz_au", ""),
+            "oz_ag": form.get("oz_ag", ""),
+        },
+        boletin_settings={
+            "precio_negociacion_porcentaje": form.get("precio_negociacion_porcentaje", ""),
+            "retencion_porcentaje": form.get("retencion_porcentaje", ""),
+        },
+        reconstructed_from_folder_id=form.get("source_folder_id", ""),
+    )
 
 
 def set_active_entrega(entrega_id: str) -> None:
@@ -232,9 +300,18 @@ def add_entrega_item(form: dict[str, str]) -> dict[str, Any]:
     if not sociedad:
         raise ValueError("Selecciona una sociedad válida.")
 
-    consecutivo = int(sociedad.get("consecutivo") or 0) + 1
-    sociedad["consecutivo"] = consecutivo
-    codigo = f"{sociedad.get('prefijo')}-{consecutivo}"
+    manual_code = form.get("codigo", "").strip().upper()
+    if manual_code:
+        if any(
+            str(existing.get("codigo", "")).strip().upper() == manual_code
+            for existing in entrega.get("items", [])
+        ):
+            raise ValueError("Ese código ya existe en la entrega.")
+        codigo = manual_code
+    else:
+        consecutivo = int(sociedad.get("consecutivo") or 0) + 1
+        sociedad["consecutivo"] = consecutivo
+        codigo = f"{sociedad.get('prefijo')}-{consecutivo}"
     raw = {
         "id": uuid.uuid4().hex,
         "proveedor": sociedad.get("sociedad", ""),
@@ -272,6 +349,18 @@ def update_entrega_item(form: dict[str, str]) -> dict[str, Any]:
     for key in ["peso_inicial", "peso_post", "muestras", "ley_estimada", "ley_au", "ley_ag"]:
         if key in form:
             item[key] = form.get(key, "")
+    if "codigo" in form:
+        codigo = form.get("codigo", "").strip().upper()
+        if not codigo:
+            raise ValueError("El código no puede quedar vacío.")
+        if any(
+            existing.get("id") != item.get("id")
+            and str(existing.get("codigo", "")).strip().upper() == codigo
+            for existing in entrega.get("items", [])
+        ):
+            raise ValueError("Ese código ya existe en la entrega.")
+        item["codigo"] = codigo
+        item["barra"] = codigo
     item["peso_final"] = item.get("peso_post", "")
     recalculated = calculations.preliminar_item(item)
     recalculated["ley_au"] = item.get("ley_au", "")
@@ -330,12 +419,27 @@ def update_parametros(form: dict[str, str]) -> dict[str, Any]:
     entrega = next((e for e in store.get("entregas", []) if e.get("id") == form.get("entrega_id")), None)
     if not entrega:
         raise ValueError("Entrega no encontrada.")
+    royalty_month = form.get("mes_regalias", "").strip().upper()
+    if royalty_month not in core.MESES_ORDEN:
+        raise ValueError("El mes de regalías no es válido.")
     entrega["parametros"] = {
-        "mes_regalias": form.get("mes_regalias", ""),
-        "dolar": form.get("dolar", ""),
-        "oz_au": form.get("oz_au", ""),
-        "oz_ag": form.get("oz_ag", ""),
+        "mes_regalias": royalty_month,
+        "dolar": normalize_optional_number(form.get("dolar", ""), "El dólar"),
+        "oz_au": normalize_optional_number(form.get("oz_au", ""), "La onza de oro"),
+        "oz_ag": normalize_optional_number(form.get("oz_ag", ""), "La onza de plata"),
     }
+    if "precio_negociacion_porcentaje" in form or "retencion_porcentaje" in form:
+        current_settings = get_entrega_boletin_settings(entrega, store)
+        entrega["boletin_settings"] = {
+            "precio_negociacion_porcentaje": normalize_percent_field(
+                form.get("precio_negociacion_porcentaje", ""),
+                current_settings["precio_negociacion_porcentaje"],
+            ),
+            "retencion_porcentaje": normalize_percent_field(
+                form.get("retencion_porcentaje", ""),
+                current_settings["retencion_porcentaje"],
+            ),
+        }
     save_store(store)
     return entrega["parametros"]
 
@@ -351,6 +455,7 @@ def clear_parametros(entrega_id: str) -> dict[str, Any]:
         "oz_au": "",
         "oz_ag": "",
     }
+    entrega.pop("boletin_settings", None)
     save_store(store)
     return entrega["parametros"]
 
@@ -684,12 +789,16 @@ def boletines_for_entrega(entrega: dict[str, Any]) -> list[dict[str, Any]]:
     store = load_store()
     parametros = entrega.get("parametros", {})
     regalias = get_regalias_for_month(store, parametros.get("mes_regalias", entrega.get("month", "")))
-    settings = get_boletin_settings(store)
+    settings = get_entrega_boletin_settings(entrega, store)
+    try:
+        delivery_date = date.fromisoformat(str(entrega.get("fecha", "")))
+    except ValueError:
+        delivery_date = date.today()
     rows = []
     for item in entrega.get("items", []):
         if item.get("ley_au") in ("", None) or item.get("ley_ag") in ("", None):
             continue
-        rows.append(calculations.boletin_context(item, parametros, regalias, settings))
+        rows.append(calculations.boletin_context(item, parametros, regalias, settings, current=delivery_date))
     return rows
 
 

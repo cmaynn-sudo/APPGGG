@@ -13,6 +13,7 @@ La app conserva los Excel actuales como referencia visual y replica sus fórmula
 - `renderer.py` genera las vistas HTML y los PDFs descargables desde las mismas plantillas visuales.
 - `document_library.py` mezcla entregas web, documentos generados e importaciones locales.
 - `analytics.py` consolida facturación y pesos por mes, incluyendo boletines PDF de carpetas históricas.
+- `historical_import.py` recibe la carpeta completa o un ZIP, detecta todas las entregas y las guarda sin duplicarlas.
 - `import_local_deliveries.py` copia los documentos existentes desde `~/Documents/CI GREEN GLOBAL` a `webapp/imported_docs/`.
 
 Ejecutar:
@@ -104,6 +105,24 @@ El dashboard se puede filtrar por año, mes, entrega y proveedor. Suma por mes y
 - Entregas y cantidad de boletines.
 
 Las entregas creadas en la web se calculan directamente con las mismas fórmulas del boletín. Al subir una carpeta histórica, la aplicación también lee sus PDFs de boletines y evita contabilizar duplicados.
+
+## Importación histórica
+
+En `Entregas` se puede seleccionar la carpeta completa `CI GREEN GLOBAL` o un ZIP con la misma estructura. La aplicación:
+
+- Detecta todas las carpetas con el formato `ENTREGA ... (AAAA-MM-DD)`.
+- Conserva el año, mes, fecha, subcarpetas y documentos originales.
+- Separa certificados y archivos mensuales que estén fuera de una entrega.
+- Actualiza una importación repetida en lugar de crear carpetas duplicadas.
+- Excluye archivos auxiliares de macOS como `.DS_Store`.
+- Lee los boletines PDF para alimentar el dashboard sin recalcular las cifras históricas.
+- Informa cuáles boletines PDF no se pudieron leer y explica la causa.
+- Detecta cargas antiguas que quedaron reunidas en una sola carpeta y permite reorganizarlas sin volver a subir los archivos.
+- Confirma la importación completa en el respaldo externo configurado.
+
+Las entregas se crean por separado según su ruta `AÑO / MES / ENTREGA (fecha)`. El panel plegable de reconstrucción manual permite volver a crear en la web una entrega cuyo PDF haya sido modificado, indicando su fecha original, mes de regalías, dólar, onzas, negociación y retención. Los documentos regenerados conservan esa fecha histórica.
+
+El límite predeterminado es de `25 MB` para la carga HTTP y `100 MB` después de descomprimir un ZIP. Se puede ajustar con `MAX_UPLOAD_MB` y `MAX_HISTORICAL_IMPORT_MB`.
 
 ## Render
 

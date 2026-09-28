@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+
+from pypdf import PdfWriter
 
 
 WEBAPP_DIR = Path(__file__).resolve().parents[1]
@@ -88,6 +92,62 @@ class DashboardSummaryTests(unittest.TestCase):
         self.assertEqual(result["totals"]["entregas"], 1)
         self.assertEqual(len(result["months"]), 1)
         self.assertEqual(result["months"][0]["number"], 1)
+
+    def test_duplicate_documents_do_not_double_totals_but_delivery_remains_filterable(self) -> None:
+        duplicate = dict(self.records[0])
+        duplicate.update({"delivery_id": "e3", "delivery_label": "ENTREGA 3", "source": "local"})
+        self.records.append(duplicate)
+
+        complete = analytics.dashboard_summary({"year": "2026"})
+        filtered = analytics.dashboard_summary({"year": "2026", "entrega": "e3"})
+
+        self.assertEqual(complete["totals"]["subtotal"], 3000.0)
+        self.assertEqual(len(complete["delivery_options"]), 3)
+        self.assertEqual(filtered["totals"]["subtotal"], 1000.0)
+        self.assertEqual(filtered["totals"]["entregas"], 1)
+
+    def test_diagnostics_identify_pdf_without_extractable_text(self) -> None:
+        with tempfile.TemporaryDirectory() as raw_root:
+            path = Path(raw_root) / "BOLETIN - MANUAL.pdf"
+            writer = PdfWriter()
+            writer.add_blank_page(width=612, height=792)
+            with path.open("wb") as target:
+                writer.write(target)
+
+            folder = {
+                "id": "historica-1",
+                "source": "local",
+                "name": "ENTREGA °4 - (2026-02-12)",
+                "href": "/entregas/local/historica-1",
+                "year": "2026",
+                "month": "FEBRERO",
+                "date": "2026-02-12",
+                "folder": {"delivery_number": "4"},
+            }
+            detail = {
+                "docs": [
+                    {
+                        "id": "pdf-1",
+                        "name": path.name,
+                        "category": "Boletines",
+                        "view_url": "/archivos/subido/pdf-1",
+                        "download_url": "/archivos/subido/pdf-1?download=1",
+                    }
+                ]
+            }
+            analytics.PDF_CACHE.clear()
+            analytics.PDF_ERROR_CACHE.clear()
+            with (
+                patch.object(analytics.document_library, "folder_detail", return_value=detail),
+                patch.object(analytics, "document_path", return_value=path),
+            ):
+                result = analytics.historical_pdf_diagnostics([folder], {"entregas": []})
+
+        self.assertEqual(result["scanned"], 1)
+        self.assertEqual(result["readable"], 0)
+        self.assertEqual(result["unreadable"], 1)
+        self.assertEqual(result["groups"][0]["delivery_number"], "4")
+        self.assertIn("no contiene texto", result["groups"][0]["documents"][0]["reason"])
 
 
 if __name__ == "__main__":

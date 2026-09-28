@@ -7,7 +7,7 @@ import mimetypes
 import os
 import re
 import zipfile
-from datetime import datetime
+from datetime import date, datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -21,6 +21,7 @@ import calculations
 import core
 import data_store
 import document_library
+import historical_import
 import persistence
 import renderer
 from html_exporter import export_all_templates
@@ -83,7 +84,7 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             if path == "/":
                 self.render_dashboard(query)
             elif path == "/documentos":
-                self.render_documentos()
+                self.render_documentos(query)
             elif path == "/leyes":
                 self.render_leyes()
             elif path == "/boletines":
@@ -166,9 +167,19 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 self.handle_upload(fields, files)
                 return
             if path == "/entregas/importar-carpeta":
-                fields, files = self.read_multipart_form()
-                folder = data_store.create_local_folder_from_upload(fields.get("folder_name", ""), files)
-                self.redirect(self.folder_url("local", folder["id"]))
+                _fields, files = self.read_multipart_form()
+                historical_import.import_uploaded_history(files)
+                self.redirect("/entregas?importacion=ok")
+                return
+            if path == "/entregas/importar-historico":
+                _fields, files = self.read_multipart_form()
+                historical_import.import_uploaded_history(files)
+                self.redirect("/entregas?importacion=ok")
+                return
+            if path == "/entregas/reorganizar-historico":
+                form = self.read_form()
+                historical_import.reorganize_existing_folder(form.get("folder_id", ""))
+                self.redirect("/entregas?importacion=ok&reorganizada=1")
                 return
             if path == "/respaldo/importar":
                 _fields, files = self.read_multipart_form()
@@ -179,6 +190,9 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             if path == "/documentos/crear":
                 data_store.create_entrega(form.get("numero", ""))
                 self.redirect("/documentos")
+            elif path == "/entregas/reconstruir":
+                data_store.create_historical_entrega(form)
+                self.redirect("/documentos?historica=ok")
             elif path == "/documentos/activar":
                 data_store.set_active_entrega(form.get("entrega_id", ""))
                 self.redirect(form.get("next", "/documentos"))
@@ -256,7 +270,8 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             },
         )
 
-    def render_documentos(self) -> None:
+    def render_documentos(self, query: dict | None = None) -> None:
+        query = query or {}
         store = data_store.load_store()
         entrega = data_store.get_entrega()
         context = {
@@ -265,6 +280,7 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             "entrega": entrega,
             "preliminares_context": calculations.preliminares_context(entrega.get("items", [])) if entrega else None,
             "generated_docs": document_library.generated_documents_for_entrega(entrega) if entrega else [],
+            "historical_created": query.get("historica", [""])[0] == "ok",
         }
         self.render("documentos.html", context)
 
@@ -283,7 +299,8 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 "entregas": data_store.list_entregas(),
                 "boletines": boletines,
                 "regalias": store.get("regalias", []),
-                "settings": data_store.get_boletin_settings(store),
+                "settings": data_store.get_entrega_boletin_settings(entrega, store) if entrega else data_store.get_boletin_settings(store),
+                "months": core.MESES_ORDEN,
             },
         )
 
@@ -333,7 +350,27 @@ class RecepcionHandler(BaseHTTPRequestHandler):
         )
 
     def render_entregas(self, query: dict) -> None:
-        folders = document_library.all_folders()
+        store = data_store.load_store()
+        all_folders = document_library.all_folders()
+        diagnostics = analytics.historical_pdf_diagnostics(all_folders, store)
+        requested_rebuild = query.get("reconstruir", [""])[0]
+        selected_issue = next(
+            (group for group in diagnostics["groups"] if group["folder_id"] == requested_rebuild),
+            None,
+        )
+        global_settings = data_store.get_boletin_settings(store)
+        reconstruction_defaults = {
+            "source_folder_id": selected_issue.get("folder_id", "") if selected_issue else "",
+            "numero": selected_issue.get("delivery_number", "") if selected_issue else "",
+            "fecha": selected_issue.get("date", "") if selected_issue else "",
+            "mes_regalias": selected_issue.get("month", "") if selected_issue else "",
+            "dolar": "",
+            "oz_au": "",
+            "oz_ag": "",
+            "precio_negociacion_porcentaje": global_settings["precio_negociacion_porcentaje"],
+            "retencion_porcentaje": global_settings["retencion_porcentaje"],
+        }
+        folders = list(all_folders)
         q = query.get("q", [""])[0].strip().lower()
         source = query.get("source", [""])[0]
         if q:
@@ -347,6 +384,14 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 "query": q,
                 "source": source,
                 "exported_at": document_library.exported_at_label(),
+                "import_success": query.get("importacion", [""])[0] == "ok",
+                "last_import": store.get("last_historical_import", {}),
+                "legacy_candidates": historical_import.legacy_folder_candidates(store),
+                "reorganized_success": query.get("reorganizada", [""])[0] == "1",
+                "diagnostics": diagnostics,
+                "reconstruction_open": bool(requested_rebuild or query.get("manual", [""])[0] == "1"),
+                "reconstruction_defaults": reconstruction_defaults,
+                "months": core.MESES_ORDEN,
             },
         )
 
@@ -415,9 +460,10 @@ class RecepcionHandler(BaseHTTPRequestHandler):
         if not entrega:
             self.send_error(HTTPStatus.NOT_FOUND, "Entrega no encontrada")
             return
+        delivery_date = self.entrega_date(entrega)
 
         if doc_type == "preliminares":
-            context = calculations.preliminares_context(entrega.get("items", []))
+            context = calculations.preliminares_context(entrega.get("items", []), current=delivery_date)
             context.update({"entrega": entrega.get("numero", ""), "fecha": entrega.get("fecha", "")})
             filename = f"PRELIMINARES - {entrega.get('numero', '')} ({entrega.get('fecha', '')}).pdf"
             self.send_print("preliminares", context, download=download, filename=filename)
@@ -425,21 +471,21 @@ class RecepcionHandler(BaseHTTPRequestHandler):
         if doc_type == "recibo" and len(parts) >= 4:
             item = self.find_item(entrega, parts[3])
             filename = f"{item.get('proveedor', 'RECIBO')} ({item.get('codigo', '')}).pdf"
-            self.send_print("recibo-metales", calculations.recibo_context(item), download=download, filename=filename)
+            self.send_print("recibo-metales", calculations.recibo_context(item, current=delivery_date), download=download, filename=filename)
             return
         if doc_type == "reporte-analisis" and len(parts) >= 4:
             item = self.find_item(entrega, parts[3])
             filename = f"REPORTE LEYES - {item.get('barra', item.get('codigo', ''))}.pdf"
-            self.send_print("reporte-analisis", calculations.reporte_analisis_context(item), download=download, filename=filename)
+            self.send_print("reporte-analisis", calculations.reporte_analisis_context(item, current=delivery_date), download=download, filename=filename)
             return
         if doc_type == "boletin" and len(parts) >= 4:
             item = self.find_item(entrega, parts[3])
             store = data_store.load_store()
             parametros = entrega.get("parametros", {})
             regalias = data_store.get_regalias_for_month(store, parametros.get("mes_regalias", entrega.get("month", "")))
-            settings = data_store.get_boletin_settings(store)
+            settings = data_store.get_entrega_boletin_settings(entrega, store)
             filename = f"BOLETIN - {item.get('barra', item.get('codigo', ''))}.pdf"
-            self.send_print("boletin", calculations.boletin_context(item, parametros, regalias, settings), download=download, filename=filename)
+            self.send_print("boletin", calculations.boletin_context(item, parametros, regalias, settings, current=delivery_date), download=download, filename=filename)
             return
         self.send_error(HTTPStatus.NOT_FOUND, "Documento no encontrado")
 
@@ -448,6 +494,12 @@ class RecepcionHandler(BaseHTTPRequestHandler):
         if not item:
             raise ValueError("Registro no encontrado en la entrega.")
         return item
+
+    def entrega_date(self, entrega: dict) -> date:
+        try:
+            return date.fromisoformat(str(entrega.get("fecha", "")))
+        except ValueError:
+            return date.today()
 
     def handle_login(self) -> None:
         form = self.read_form()
@@ -630,21 +682,22 @@ class RecepcionHandler(BaseHTTPRequestHandler):
 
     def generated_zip_entries(self, entrega: dict) -> list[tuple[str, bytes]]:
         entries: list[tuple[str, bytes]] = []
+        delivery_date = self.entrega_date(entrega)
         if entrega.get("items"):
-            context = calculations.preliminares_context(entrega.get("items", []))
+            context = calculations.preliminares_context(entrega.get("items", []), current=delivery_date)
             context.update({"entrega": entrega.get("numero", ""), "fecha": entrega.get("fecha", "")})
             entries.append((f"Preliminares/PRELIMINARES - {entrega.get('numero', '')} ({entrega.get('fecha', '')}).pdf", renderer.render_print_pdf("preliminares", context)))
         store = data_store.load_store()
         for item in entrega.get("items", []):
             barra = item.get("barra", item.get("codigo", ""))
             proveedor = item.get("proveedor", "RECIBO")
-            entries.append((f"Recibos de metales/{proveedor} ({barra}).pdf", renderer.render_print_pdf("recibo-metales", calculations.recibo_context(item))))
+            entries.append((f"Recibos de metales/{proveedor} ({barra}).pdf", renderer.render_print_pdf("recibo-metales", calculations.recibo_context(item, current=delivery_date))))
             if item.get("ley_au") not in ("", None) and item.get("ley_ag") not in ("", None):
-                entries.append((f"Leyes/REPORTE LEYES - {barra}.pdf", renderer.render_print_pdf("reporte-analisis", calculations.reporte_analisis_context(item))))
+                entries.append((f"Leyes/REPORTE LEYES - {barra}.pdf", renderer.render_print_pdf("reporte-analisis", calculations.reporte_analisis_context(item, current=delivery_date))))
                 parametros = entrega.get("parametros", {})
                 regalias = data_store.get_regalias_for_month(store, parametros.get("mes_regalias", entrega.get("month", "")))
-                settings = data_store.get_boletin_settings(store)
-                entries.append((f"Boletines/BOLETIN - {barra}.pdf", renderer.render_print_pdf("boletin", calculations.boletin_context(item, parametros, regalias, settings))))
+                settings = data_store.get_entrega_boletin_settings(entrega, store)
+                entries.append((f"Boletines/BOLETIN - {barra}.pdf", renderer.render_print_pdf("boletin", calculations.boletin_context(item, parametros, regalias, settings, current=delivery_date))))
         return entries
 
     def send_print(self, slug: str, context: dict, download: bool = False, filename: str = "") -> None:

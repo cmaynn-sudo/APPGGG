@@ -21,10 +21,10 @@
     });
   }
 
-  document.querySelectorAll("[data-folder-upload-form]").forEach((form) => {
+  document.querySelectorAll("[data-history-upload-form], [data-folder-upload-form]").forEach((form) => {
     form.addEventListener("submit", async (event) => {
-      const input = form.querySelector("[data-folder-input]");
-      const status = form.parentElement.querySelector("[data-upload-status]");
+      const input = form.querySelector("[data-upload-input], [data-folder-input]");
+      const status = form.querySelector("[data-upload-status]") || form.parentElement.querySelector("[data-upload-status]");
       if (!input || !input.files || !input.files.length || !window.fetch || !window.FormData) {
         return;
       }
@@ -44,10 +44,17 @@
       const submit = form.querySelector("button[type='submit']");
       if (submit) {
         submit.disabled = true;
-        submit.textContent = "Subiendo...";
+        const label = submit.querySelector("span");
+        if (label) {
+          label.textContent = "Importando...";
+        } else {
+          submit.textContent = "Importando...";
+        }
       }
       if (status) {
-        status.textContent = `${input.files.length} archivo(s) seleccionados.`;
+        const totalBytes = Array.from(input.files).reduce((sum, file) => sum + file.size, 0);
+        const totalMb = (totalBytes / (1024 * 1024)).toFixed(1);
+        status.textContent = `${input.files.length} archivo(s), ${totalMb} MB. No cierres esta pestaña.`;
       }
 
       try {
@@ -70,7 +77,13 @@
         }
         if (submit) {
           submit.disabled = false;
-          submit.textContent = "Subir carpeta";
+          const label = submit.querySelector("span");
+          const idleLabel = submit.dataset.idleLabel || "Subir carpeta";
+          if (label) {
+            label.textContent = idleLabel;
+          } else {
+            submit.textContent = idleLabel;
+          }
         }
       }
     });

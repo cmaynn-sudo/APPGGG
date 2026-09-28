@@ -253,7 +253,10 @@ def uploaded_documents_for_folder(source: str, folder_id: str) -> list[dict[str,
         item["category"] = item.get("category") or "Archivos agregados"
         display_path = item.get("display_path") or item.get("name", "Archivo")
         item["title"] = display_path
-        item["meta"] = "Subido al aplicativo" if source != "local" else "Carpeta local"
+        if item.get("historical_import"):
+            item["meta"] = "Histórico importado"
+        else:
+            item["meta"] = "Subido al aplicativo" if source != "local" else "Carpeta local"
         item["size_label"] = file_size_label(item.get("size"))
         item["view_url"] = f"/archivos/subido/{quote(item['id'])}"
         item["download_url"] = f"/archivos/subido/{quote(item['id'])}?download=1"
@@ -267,11 +270,12 @@ def local_uploaded_folders() -> list[dict[str, Any]]:
     folders = []
     for folder in data_store.list_local_folders():
         uploads = uploaded_documents_for_folder("local", folder.get("id", ""))
+        historical = folder.get("import_kind") in {"delivery", "general"}
         folders.append(
             {
                 "id": folder.get("id", ""),
                 "source": "local",
-                "source_label": "Carpeta local",
+                "source_label": "Histórico" if historical else "Carpeta local",
                 "name": folder.get("name", ""),
                 "year": folder.get("year", ""),
                 "month": folder.get("month", ""),
@@ -341,14 +345,17 @@ def folder_detail(source: str, folder_id: str) -> dict[str, Any] | None:
         if not folder:
             return None
         docs = uploaded_documents_for_folder("local", folder_id)
+        historical = folder.get("import_kind") in {"delivery", "general"}
         return {
             "id": folder_id,
             "source": "local",
-            "source_label": "Carpeta local",
+            "source_label": "Histórico" if historical else "Carpeta local",
             "name": folder.get("name", ""),
             "year": folder.get("year", ""),
             "month": folder.get("month", ""),
             "date": folder.get("date", ""),
+            "source_relative_path": folder.get("source_relative_path", ""),
+            "imported_at": folder.get("imported_at", ""),
             "docs": docs,
             "can_delete_folder": True,
             "zip_url": f"/entregas/local/{quote(folder_id)}/descargar",

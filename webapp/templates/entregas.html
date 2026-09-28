@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "icons.html" as icons %}
 
 {% block title %}Entregas{% endblock %}
 
@@ -7,55 +8,227 @@
   <div>
     <p class="eyebrow">Biblioteca</p>
     <h1>Entregas</h1>
-    <p>Carpetas web e importadas desde CI GREEN GLOBAL.</p>
+    <p>Ventas web e históricas con todos sus documentos originales.</p>
   </div>
   <div class="header-actions">
+    <a class="button button-ghost" href="/entregas?manual=1#reconstruccion" data-tooltip="Crear una entrega antigua con fecha y parámetros propios">
+      {{ icons.icon("calendar") }}<span>Reconstruir antigua</span>
+    </a>
     <a class="button" href="/documentos" data-tooltip="Crear una entrega web nueva">Nueva entrega</a>
   </div>
 </header>
 
-<section class="work-grid">
-  <div class="panel">
-    <div class="panel-title">
-      <h2>Subir carpeta local</h2>
-      <span>PDFs, Excel y soportes de otra entrega</span>
-    </div>
-    <form class="form-grid" method="post" action="/entregas/importar-carpeta" enctype="multipart/form-data" data-folder-upload-form>
-      <label>Nombre de carpeta<input name="folder_name" placeholder="ENTREGA °6 - (2026-04-09)"></label>
-      <label>Carpeta<input name="archivos" type="file" multiple webkitdirectory directory required data-folder-input></label>
-      <button class="button" type="submit" data-tooltip="Importar una carpeta local con todos sus archivos">Subir carpeta</button>
-    </form>
-    <p class="upload-status muted" data-upload-status></p>
+{% if import_success and last_import %}
+<section class="notice success import-result" aria-live="polite">
+  <div class="notice-icon">{{ icons.icon("badge-check") }}</div>
+  <div>
+    <strong>{{ "Carpeta histórica reorganizada" if reorganized_success else "Importación histórica terminada" }}</strong>
+    <p>
+      {{ last_import.deliveries }} entrega(s), {{ last_import.files }} archivo(s) y
+      {{ last_import.boletines }} boletín(es) detectados. {{ last_import.created }} carpeta(s) creada(s)
+      y {{ last_import.updated }} actualizada(s).
+    </p>
   </div>
+</section>
+{% endif %}
 
-  <div class="panel">
-    <div class="panel-title">
-      <h2>Filtrar carpetas</h2>
-      <span>{{ folders|length }} resultado(s)</span>
+<section class="panel historical-import-panel">
+  <div class="panel-title">
+    <div>
+      <h2>Importar ventas históricas</h2>
+      <p>Selecciona la carpeta completa CI GREEN GLOBAL o un ZIP. El sistema separa las entregas y conserva sus fechas.</p>
     </div>
+    <span>Sin duplicados</span>
+  </div>
+  <div class="history-import-options">
+    <form class="history-import-form" method="post" action="/entregas/importar-historico" enctype="multipart/form-data" data-history-upload-form>
+      <div class="import-method-icon">{{ icons.icon("folder") }}</div>
+      <div class="import-method-copy">
+        <strong>Carpeta completa</strong>
+        <span>Recomendado para subirla directamente desde este equipo.</span>
+      </div>
+      <label class="file-picker">
+        <span>Seleccionar carpeta</span>
+        <input name="archivos" type="file" multiple webkitdirectory directory required data-upload-input>
+      </label>
+      <button class="button" type="submit" data-idle-label="Importar carpeta" data-tooltip="Detectar e importar todas las entregas de esta carpeta">
+        {{ icons.icon("upload") }}<span>Importar carpeta</span>
+      </button>
+      <p class="upload-status muted" data-upload-status></p>
+    </form>
+
+    <form class="history-import-form" method="post" action="/entregas/importar-historico" enctype="multipart/form-data" data-history-upload-form>
+      <div class="import-method-icon secondary">{{ icons.icon("archive") }}</div>
+      <div class="import-method-copy">
+        <strong>Archivo ZIP</strong>
+        <span>Útil si ya comprimiste la carpeta y quieres conservar todas las rutas.</span>
+      </div>
+      <label class="file-picker">
+        <span>Seleccionar ZIP</span>
+        <input name="archivo_zip" type="file" accept=".zip,application/zip" required data-upload-input>
+      </label>
+      <button class="button button-secondary" type="submit" data-idle-label="Importar ZIP" data-tooltip="Descomprimir, detectar e importar todas las entregas">
+        {{ icons.icon("upload") }}<span>Importar ZIP</span>
+      </button>
+      <p class="upload-status muted" data-upload-status></p>
+    </form>
+  </div>
+  <div class="import-assurances">
+    <span>{{ icons.icon("calendar") }} Fechas originales</span>
+    <span>{{ icons.icon("folder") }} Estructura completa</span>
+    <span>{{ icons.icon("refresh") }} Actualización sin duplicar</span>
+    <span>{{ icons.icon("database") }} Respaldo automático en R2</span>
+  </div>
+</section>
+
+{% if legacy_candidates %}
+<section class="notice warning legacy-migration section-gap">
+  <div>
+    <strong>Carga anterior pendiente de organizar</strong>
+    <p>Estas carpetas conservan sus rutas internas y pueden separarse ahora sin volver a subir los archivos.</p>
+  </div>
+  {% for folder in legacy_candidates %}
+  <form method="post" action="/entregas/reorganizar-historico">
+    <input type="hidden" name="folder_id" value="{{ folder.id }}">
+    <span><strong>{{ folder.name }}</strong> · {{ folder.deliveries }} entregas · {{ folder.files }} archivos</span>
+    <button class="button button-small" type="submit" data-tooltip="Separar esta carga por año, mes y entrega">
+      {{ icons.icon("refresh") }}<span>Reorganizar ahora</span>
+    </button>
+  </form>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if diagnostics.scanned %}
+  {% if diagnostics.unreadable %}
+  <section class="panel pdf-review-panel section-gap" id="revision-pdf">
+    <div class="panel-title">
+      <div>
+        <h2>PDF que requieren revisión</h2>
+        <p>El sistema leyó {{ diagnostics.readable }} de {{ diagnostics.scanned }} boletín(es). Los siguientes tienen un formato diferente, están dañados o no contienen texto.</p>
+      </div>
+      <span class="review-count">{{ diagnostics.unreadable }} sin leer</span>
+    </div>
+    <div class="pdf-issue-list">
+      {% for group in diagnostics.groups %}
+      <article class="pdf-issue-group {{ 'resolved' if group.reconstructed else '' }}">
+        <div class="pdf-issue-heading">
+          <div>
+            <strong>{{ group.folder_name }}</strong>
+            <span>{{ group.month }} {{ group.year }}{% if group.date %} · {{ group.date }}{% endif %}</span>
+          </div>
+          {% if group.reconstructed %}
+          <span class="status-chip success">Entrega web creada</span>
+          {% else %}
+          <span class="status-chip warning">Pendiente</span>
+          {% endif %}
+        </div>
+        <div class="pdf-issue-documents">
+          {% for document in group.documents %}
+          <div class="pdf-issue-document">
+            <span class="pdf-file-icon">{{ icons.icon("file-search") }}</span>
+            <div>
+              <strong>{{ document.name }}</strong>
+              <small>{{ document.reason }}</small>
+            </div>
+            <a class="icon-action" href="{{ document.view_url }}" target="_blank" data-tooltip="Abrir el PDF original" aria-label="Abrir PDF original">{{ icons.icon("eye") }}</a>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="inline-actions">
+          <a class="text-action" href="{{ group.folder_href }}">Abrir carpeta {{ icons.icon("arrow-right") }}</a>
+          {% if group.reconstructed %}
+          <a class="button button-small button-secondary" href="/entregas/web/{{ group.web_delivery_id }}">Abrir {{ group.web_delivery_name }}</a>
+          {% else %}
+          <a class="button button-small" href="/entregas?reconstruir={{ group.folder_id }}#reconstruccion">Reconstruir entrega</a>
+          {% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+  {% else %}
+  <section class="notice success pdf-read-success section-gap">
+    {{ icons.icon("badge-check") }}
+    <span>Los {{ diagnostics.scanned }} boletines PDF históricos se pudieron leer correctamente.</span>
+  </section>
+  {% endif %}
+{% endif %}
+
+<details class="panel legacy-builder section-gap" id="reconstruccion" {% if reconstruction_open %}open{% endif %}>
+  <summary>
+    <span class="details-icon">{{ icons.icon("calendar") }}</span>
+    <span>
+      <strong>Reconstrucción manual de entrega antigua</strong>
+      <small>Fecha y parámetros propios para volver a generar sus documentos en la web.</small>
+    </span>
+    <span class="details-chevron">{{ icons.icon("arrow-right") }}</span>
+  </summary>
+  <div class="legacy-builder-body">
+    {% if reconstruction_defaults.source_folder_id %}
+    <p class="notice warning compact-notice">Los datos básicos se tomaron de la carpeta detectada. Completa los valores originales del boletín.</p>
+    {% endif %}
+    <form class="reconstruction-form" method="post" action="/entregas/reconstruir">
+      <input type="hidden" name="source_folder_id" value="{{ reconstruction_defaults.source_folder_id }}">
+      <label>Número de entrega<input name="numero" value="{{ reconstruction_defaults.numero }}" required></label>
+      <label>Fecha original<input name="fecha" type="date" value="{{ reconstruction_defaults.fecha }}" required></label>
+      <label>Mes de regalías
+        <select name="mes_regalias" required>
+          <option value="">Seleccionar</option>
+          {% for month in months %}
+          <option value="{{ month }}" {% if month == reconstruction_defaults.mes_regalias %}selected{% endif %}>{{ month }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Dólar<input name="dolar" value="{{ reconstruction_defaults.dolar }}" inputmode="decimal" required></label>
+      <label>OZ AU<input name="oz_au" value="{{ reconstruction_defaults.oz_au }}" inputmode="decimal" required></label>
+      <label>OZ AG<input name="oz_ag" value="{{ reconstruction_defaults.oz_ag }}" inputmode="decimal" required></label>
+      <label>Precio de negociación (%)<input name="precio_negociacion_porcentaje" value="{{ reconstruction_defaults.precio_negociacion_porcentaje }}" inputmode="decimal" required></label>
+      <label>Retención (%)<input name="retencion_porcentaje" value="{{ reconstruction_defaults.retencion_porcentaje }}" inputmode="decimal" required></label>
+      <div class="reconstruction-submit">
+        <button class="button" type="submit" data-tooltip="Crear y dejar activa esta entrega histórica">
+          {{ icons.icon("calendar") }}<span>Crear entrega histórica</span>
+        </button>
+        <small>Después podrás agregar sociedades, pesos y leyes desde Documentos.</small>
+      </div>
+    </form>
+  </div>
+</details>
+
+<section class="panel section-gap">
+  <div class="panel-title">
+    <div>
+      <h2>Buscar entregas</h2>
+      <p>Filtra la biblioteca por nombre, mes u origen.</p>
+    </div>
+    <span>{{ folders|length }} resultado(s)</span>
+  </div>
   <form class="form-grid" method="get" action="/entregas">
     <label>Buscar<input name="q" value="{{ query }}" placeholder="Entrega, mes o nombre"></label>
     <label>Origen
       <select name="source">
         <option value="">Todos</option>
         <option value="web" {% if source == "web" %}selected{% endif %}>Web</option>
-        <option value="local" {% if source == "local" %}selected{% endif %}>Carpetas subidas</option>
-        <option value="imported" {% if source == "imported" %}selected{% endif %}>Importadas</option>
+        <option value="local" {% if source == "local" %}selected{% endif %}>Histórico subido</option>
+        <option value="imported" {% if source == "imported" %}selected{% endif %}>Incluido en el proyecto</option>
         <option value="loose" {% if source == "loose" %}selected{% endif %}>Archivos sueltos</option>
       </select>
     </label>
-    <button class="button button-secondary" type="submit" data-tooltip="Aplicar búsqueda y origen">Filtrar</button>
+    <button class="button button-secondary" type="submit" data-tooltip="Aplicar búsqueda y origen">
+      {{ icons.icon("search") }}<span>Filtrar</span>
+    </button>
   </form>
-  </div>
 </section>
 
-<section class="panel section-gap">
-  {% if exported_at %}
-  <p class="muted">Importación local actualizada: {{ exported_at }}</p>
-  {% else %}
-  <p class="muted">Las carpetas subidas desde esta pantalla quedan disponibles en esta biblioteca.</p>
-  {% endif %}
+{% if last_import and not import_success %}
+<section class="import-history-line section-gap">
+  <span>{{ icons.icon("badge-check") }}</span>
+  <p>
+    Última importación: <strong>{{ last_import.deliveries }} entrega(s)</strong> y
+    <strong>{{ last_import.files }} archivo(s)</strong> el {{ last_import.imported_at|replace("T", " ") }}.
+  </p>
 </section>
+{% endif %}
 
 <section class="folder-grid section-gap">
   {% for folder in folders %}

@@ -3,18 +3,24 @@
 {% block title %}Ingreso{% endblock %}
 
 {% block content %}
-<section class="login-shell">
+<section class="login-shell" aria-labelledby="login-title">
   <div class="login-panel">
-    <img src="/static/generated/logo.png" alt="">
+    <div class="login-brand-mark">
+      <img src="/static/generated/logo.png" alt="Green Global Group">
+    </div>
     <p class="eyebrow">Acceso seguro</p>
-    <h1>Recepción Green Global</h1>
+    <h1 id="login-title">Recepción Green Global</h1>
+    <p class="login-welcome">Ingresa con tu cuenta para continuar.</p>
     <form class="form-stack" method="post" action="/login">
       <input type="hidden" name="next" value="{{ next }}">
-      <label>Usuario<input name="username" autocomplete="username" required autofocus></label>
-      <label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
+      <label><span>Usuario</span><input name="username" autocomplete="username" required autofocus></label>
+      <label><span>Contraseña</span><input name="password" type="password" autocomplete="current-password" required></label>
       {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
-      <button class="button" type="submit">Ingresar</button>
+      <button class="button login-submit" type="submit">
+        <span>Ingresar</span>{{ icons.icon("arrow-right") }}
+      </button>
     </form>
+    <p class="login-company">Green Global Group</p>
   </div>
 </section>
 {% endblock %}

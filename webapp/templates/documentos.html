@@ -12,6 +12,12 @@
   </div>
 </header>
 
+{% if historical_created %}
+<section class="notice success">
+  La entrega histórica quedó creada y activa. Agrega sus sociedades, pesos y leyes; los documentos usarán la fecha y parámetros que elegiste.
+</section>
+{% endif %}
+
 <section class="work-grid">
   <div class="panel">
     <div class="panel-title">
@@ -31,6 +37,7 @@
     </div>
     {% if entrega %}
     <p class="muted">{{ entrega.year }} / {{ entrega.month }} / {{ entrega.fecha }}</p>
+    {% if entrega.historical_reconstruction %}<p class="status-chip success historical-chip">Reconstrucción histórica</p>{% endif %}
     <div class="action-row">
       <a class="button" href="/print/preliminares/{{ entrega.id }}" target="_blank" data-tooltip="Ver preliminares en pantalla">Preliminares</a>
       <a class="button button-secondary" href="/entregas/web/{{ entrega.id }}" data-tooltip="Abrir carpeta de esta entrega">Abrir carpeta</a>
@@ -80,6 +87,9 @@
     <label>Peso inicial<input name="peso_inicial" required inputmode="decimal"></label>
     <label>Peso post fundición<input name="peso_post" required inputmode="decimal"></label>
     <label>Muestras<input name="muestras" inputmode="decimal" value="0"></label>
+    {% if entrega.historical_reconstruction %}
+    <label>Código original<input name="codigo" placeholder="Ej. MECA-3" required></label>
+    {% endif %}
     <button class="button" type="submit" data-tooltip="Agregar sociedad a esta entrega">Agregar</button>
   </form>
 </section>
@@ -129,6 +139,7 @@
             <input type="hidden" name="next" value="/documentos">
             <input type="hidden" name="entrega_id" value="{{ entrega.id }}">
             <input type="hidden" name="item_id" value="{{ item.id }}">
+            <label>Código<input name="codigo" value="{{ item.codigo }}" required></label>
             <label>Peso inicial<input name="peso_inicial" value="{{ item.peso_inicial }}" inputmode="decimal" required></label>
             <label>Peso post<input name="peso_post" value="{{ item.peso_post }}" inputmode="decimal" required></label>
             <label>Muestras<input name="muestras" value="{{ item.muestras }}" inputmode="decimal"></label>

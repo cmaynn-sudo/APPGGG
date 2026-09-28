@@ -14,6 +14,7 @@ import document_library
 
 
 PDF_CACHE: dict[tuple[str, int, int], dict[str, Any] | None] = {}
+PDF_ERROR_CACHE: dict[tuple[str, int, int], str] = {}
 MONTH_NUMBER = {name: number for number, name in core.MESES_ES.items()}
 
 
@@ -24,15 +25,10 @@ def dashboard_summary(requested_filters: dict[str, str] | None = None) -> dict[s
     records = structured_billing_records(store)
     read_errors = 0
 
-    known_keys = {record_key(record) for record in records}
     for record, parsed in historical_billing_records(folders):
         if not parsed:
             read_errors += 1
             continue
-        key = record_key(record)
-        if key in known_keys:
-            continue
-        known_keys.add(key)
         records.append(record)
 
     current_year = str(date.today().year)
@@ -66,6 +62,7 @@ def dashboard_summary(requested_filters: dict[str, str] | None = None) -> dict[s
         selected = [record for record in selected if str(record.get("delivery_id", "")) == selected_delivery]
     if selected_provider:
         selected = [record for record in selected if str(record.get("sociedad", "")) == selected_provider]
+    selected = unique_records(selected)
 
     month_numbers = [int(selected_month)] if selected_month else list(core.MESES_ES)
     months = []
@@ -115,9 +112,9 @@ def dashboard_summary(requested_filters: dict[str, str] | None = None) -> dict[s
 
 
 def structured_billing_records(store: dict[str, Any]) -> list[dict[str, Any]]:
-    settings = data_store.get_boletin_settings(store)
     records = []
     for entrega in store.get("entregas", []):
+        settings = data_store.get_entrega_boletin_settings(entrega, store)
         parametros = entrega.get("parametros", {})
         regalias = data_store.get_regalias_for_month(
             store,
@@ -197,6 +194,87 @@ def historical_billing_records(folders: list[dict[str, Any]]):
             yield parsed, True
 
 
+def historical_pdf_diagnostics(
+    folders: list[dict[str, Any]] | None = None,
+    store: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    folders = folders if folders is not None else document_library.all_folders()
+    store = store or data_store.load_store()
+    reconstructed = {
+        str(entrega.get("reconstructed_from_folder_id", "")): entrega
+        for entrega in store.get("entregas", [])
+        if str(entrega.get("reconstructed_from_folder_id", ""))
+    }
+    groups = []
+    scanned = 0
+    readable = 0
+
+    for folder in folders:
+        source = folder.get("source")
+        if source not in {"local", "imported"}:
+            continue
+        detail_source = "importadas" if source == "imported" else "local"
+        detail = document_library.folder_detail(detail_source, folder.get("id", ""))
+        if not detail:
+            continue
+        issues = []
+        for document in detail.get("docs", []):
+            name = str(document.get("name", ""))
+            if document.get("category") != "Boletines" and not name.upper().startswith("BOLETIN"):
+                continue
+            if not name.lower().endswith(".pdf"):
+                continue
+            scanned += 1
+            path = document_path(document)
+            parsed, reason = inspect_billing_pdf(path) if path else (None, "El archivo no está disponible en el almacenamiento.")
+            if parsed:
+                readable += 1
+                continue
+            issues.append(
+                {
+                    "id": document.get("id", ""),
+                    "name": name,
+                    "reason": reason,
+                    "view_url": document.get("view_url", ""),
+                    "download_url": document.get("download_url", ""),
+                }
+            )
+        if not issues:
+            continue
+
+        folder_id = str(folder.get("id", ""))
+        linked = reconstructed.get(folder_id)
+        folder_data = folder.get("folder") or {}
+        delivery_number = str(folder_data.get("delivery_number", ""))
+        if not delivery_number:
+            match = re.search(r"ENTREGA\s*[°º#Nn.]*\s*(\d+)", str(folder.get("name", "")), re.IGNORECASE)
+            delivery_number = match.group(1) if match else ""
+        groups.append(
+            {
+                "folder_id": folder_id,
+                "folder_name": folder.get("name", "Entrega histórica"),
+                "folder_href": folder.get("href", ""),
+                "date": folder.get("date", ""),
+                "year": folder.get("year", ""),
+                "month": folder.get("month", ""),
+                "delivery_number": delivery_number,
+                "documents": issues,
+                "reconstructed": bool(linked),
+                "web_delivery_id": linked.get("id", "") if linked else "",
+                "web_delivery_name": linked.get("name", "") if linked else "",
+            }
+        )
+
+    unreadable = sum(len(group["documents"]) for group in groups)
+    return {
+        "scanned": scanned,
+        "readable": readable,
+        "unreadable": unreadable,
+        "pending_groups": sum(not group["reconstructed"] for group in groups),
+        "groups": groups,
+    }
+
+
 def document_path(document: dict[str, Any]) -> Path | None:
     kind = document.get("kind")
     if kind == "uploaded":
@@ -209,20 +287,30 @@ def document_path(document: dict[str, Any]) -> Path | None:
 
 
 def parse_billing_pdf(path: Path) -> dict[str, Any] | None:
+    result, _reason = inspect_billing_pdf(path)
+    return result
+
+
+def inspect_billing_pdf(path: Path) -> tuple[dict[str, Any] | None, str]:
     try:
         stat = path.stat()
     except OSError:
-        return None
+        return None, "El archivo no está disponible en el almacenamiento."
     cache_key = (str(path), stat.st_mtime_ns, stat.st_size)
     if cache_key in PDF_CACHE:
-        return PDF_CACHE[cache_key]
+        return PDF_CACHE[cache_key], PDF_ERROR_CACHE.get(cache_key, "")
 
     try:
         text = " ".join((page.extract_text() or "") for page in PdfReader(str(path)).pages)
-    except Exception:
+    except Exception as exc:
         PDF_CACHE[cache_key] = None
-        return None
+        PDF_ERROR_CACHE[cache_key] = f"El PDF está dañado, protegido o no se puede abrir ({type(exc).__name__})."
+        return None, PDF_ERROR_CACHE[cache_key]
     text = re.sub(r"\s+", " ", text)
+    if not text.strip():
+        PDF_CACHE[cache_key] = None
+        PDF_ERROR_CACHE[cache_key] = "El PDF no contiene texto extraíble; puede ser una imagen escaneada."
+        return None, PDF_ERROR_CACHE[cache_key]
 
     received = re.search(
         r"PESO\s+RECIBIDO\s+PESO\s+FUNDIDO.*?([0-9][0-9.,]*)\s*G\s+([0-9][0-9.,]*)\s*G",
@@ -232,7 +320,14 @@ def parse_billing_pdf(path: Path) -> dict[str, Any] | None:
     subtotal = find_number(text, r"VALOR\s+TOTAL\s+METALES\s*\(COP\)\s*\$?\s*([0-9][0-9.,]*)")
     if not received or subtotal is None:
         PDF_CACHE[cache_key] = None
-        return None
+        if not received and subtotal is None:
+            reason = "No se reconocieron los pesos ni el valor total; el formato del boletín es diferente."
+        elif not received:
+            reason = "No se reconocieron los pesos recibido y fundido del boletín."
+        else:
+            reason = "No se reconoció el valor total de metales del boletín."
+        PDF_ERROR_CACHE[cache_key] = reason
+        return None, reason
 
     raw_date = find_text(text, r"FECHA\s+DE\s+LIQUIDACI[ÓO]N:\s*(\d{1,2}/\d{1,2}/\d{4})")
     parsed_date = ""
@@ -264,7 +359,8 @@ def parse_billing_pdf(path: Path) -> dict[str, Any] | None:
         "peso_final": parse_number(received.group(2)),
     }
     PDF_CACHE[cache_key] = result
-    return result
+    PDF_ERROR_CACHE[cache_key] = ""
+    return result, ""
 
 
 def find_text(text: str, pattern: str) -> str:
@@ -299,6 +395,18 @@ def record_key(record: dict[str, Any]) -> tuple[str, str, int, int, int]:
         round(calculations.as_float(record.get("peso_inicial")) * 100),
         round(calculations.as_float(record.get("peso_final")) * 100),
     )
+
+
+def unique_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows = []
+    known = set()
+    for record in records:
+        key = record_key(record)
+        if key in known:
+            continue
+        known.add(key)
+        rows.append(record)
+    return rows
 
 
 def unique_options(records: list[dict[str, Any]], value_key: str, label_key: str) -> list[dict[str, str]]:

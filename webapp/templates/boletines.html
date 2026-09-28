@@ -24,19 +24,21 @@
     <h2>Parámetros</h2>
     <span>{{ entrega.name }}</span>
   </div>
-  <form class="form-grid form-grid-wide" method="post" action="/boletines/parametros">
+  <form class="form-grid form-grid-parameters" method="post" action="/boletines/parametros">
     <input type="hidden" name="entrega_id" value="{{ entrega.id }}">
     <label>Mes regalías
       <select name="mes_regalias">
-        {% for row in regalias %}
-        <option value="{{ row.mes }}" {% if row.mes == entrega['parametros']['mes_regalias'] %}selected{% endif %}>{{ row.mes }}</option>
+        {% for month in months %}
+        <option value="{{ month }}" {% if month == entrega['parametros']['mes_regalias'] %}selected{% endif %}>{{ month }}</option>
         {% endfor %}
       </select>
     </label>
     <label>Dólar<input name="dolar" value="{{ entrega['parametros']['dolar'] }}" inputmode="decimal"></label>
     <label>OZ AU<input name="oz_au" value="{{ entrega['parametros']['oz_au'] }}" inputmode="decimal"></label>
     <label>OZ AG<input name="oz_ag" value="{{ entrega['parametros']['oz_ag'] }}" inputmode="decimal"></label>
-    <button class="button" type="submit" data-tooltip="Guardar mes, dólar y onzas de esta entrega">Guardar parámetros</button>
+    <label>Negociación (%)<input name="precio_negociacion_porcentaje" value="{{ settings.precio_negociacion_porcentaje }}" inputmode="decimal"></label>
+    <label>Retención (%)<input name="retencion_porcentaje" value="{{ settings.retencion_porcentaje }}" inputmode="decimal"></label>
+    <button class="button" type="submit" data-tooltip="Guardar los parámetros propios de esta entrega">Guardar parámetros</button>
   </form>
   <form class="delete-inline-form section-gap" method="post" action="/boletines/parametros/eliminar">
     <input type="hidden" name="entrega_id" value="{{ entrega.id }}">

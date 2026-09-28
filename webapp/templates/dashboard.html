@@ -224,7 +224,10 @@
       </table>
     </div>
     {% if dashboard.read_errors %}
-    <p class="data-note">{{ dashboard.read_errors }} boletín(es) importado(s) no pudieron leerse y no se incluyeron en las cifras.</p>
+    <p class="data-note">
+      {{ dashboard.read_errors }} boletín(es) importado(s) no pudieron leerse y no se incluyeron en las cifras.
+      <a href="/entregas#revision-pdf">Revisar archivos</a>
+    </p>
     {% endif %}
   </div>
 

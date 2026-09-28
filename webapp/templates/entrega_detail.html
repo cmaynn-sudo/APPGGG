@@ -9,6 +9,9 @@
     <p class="eyebrow">Carpeta {{ folder.source_label }}</p>
     <h1>{{ folder.name }}</h1>
     <p>{{ folder.year }} {{ folder.month }}{% if folder.date %} · {{ folder.date }}{% endif %}</p>
+    {% if folder.source_relative_path %}
+    <p class="source-path">Ruta original: {{ folder.source_relative_path }}</p>
+    {% endif %}
   </div>
   <div class="header-actions">
     <a class="button button-secondary" href="/entregas" data-tooltip="Volver a la biblioteca de entregas">Carpetas</a>
