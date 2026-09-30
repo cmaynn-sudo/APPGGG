@@ -149,6 +149,42 @@ class DashboardSummaryTests(unittest.TestCase):
         self.assertEqual(result["groups"][0]["delivery_number"], "4")
         self.assertIn("no contiene texto", result["groups"][0]["documents"][0]["reason"])
 
+    def test_old_regalizas_label_is_read_without_losing_royalties(self) -> None:
+        text = """
+        DOCUMENTO: CORI-4 PROVEEDOR: COMERCIAL RIO VERDE S.A.S NIT: 900.534.616-3
+        FECHA DE LIQUIDACION: 12/03/2026
+        PESO RECIBIDO PESO FUNDIDO 1.000 G 920 G
+        VALOR TOTAL METALES (COP) $ 100.000.000
+        VALOR A PAGAR (COP) $ 97.500.000
+        REGALIZAS ADEUDADAS POR EL PROVEEDOR ORO PLATA $ 474.135 $ 7.785,95
+        VALOR PAGADO $ 97.018.079
+        """
+
+        result, reason = analytics.parse_billing_text(text)
+
+        self.assertEqual(reason, "")
+        self.assertIsNotNone(result)
+        self.assertEqual(result["regalia_oro"], 474135.0)
+        self.assertEqual(result["regalia_plata"], 7785.95)
+        self.assertEqual(result["_missing_fields"], [])
+
+    def test_manual_override_fills_only_dashboard_missing_fields(self) -> None:
+        record = {
+            "documento": "CORI-4",
+            "date": "2026-03-12",
+            "regalia_oro": 0.0,
+            "regalia_plata": 0.0,
+            "_missing_fields": ["regalia_oro", "regalia_plata"],
+        }
+        override = {"values": {"regalia_oro": 474135.0, "regalia_plata": 7785.95}}
+
+        corrected = analytics.apply_dashboard_override(record, override)
+
+        self.assertEqual(corrected["regalia_oro"], 474135.0)
+        self.assertEqual(corrected["regalia_plata"], 7785.95)
+        self.assertEqual(corrected["_missing_fields"], [])
+        self.assertTrue(corrected["_manual_override"])
+
 
 if __name__ == "__main__":
     unittest.main()

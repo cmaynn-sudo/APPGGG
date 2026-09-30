@@ -1,14 +1,14 @@
 <section class="print-document letter-liquidation" data-template="boletin">
   <div class="liquidation-sheet">
     <header class="liq-header">
-      <h1>REPORTE DE LIQUIDACIÓN</h1>
-      <img src="/static/generated/logo.png" alt="">
+      <h1 data-layout-id="block-title" data-layout-label="Título del boletín">REPORTE DE LIQUIDACIÓN</h1>
+      <img data-layout-id="block-logo" data-layout-label="Logo" src="/static/generated/logo.png" alt="">
     </header>
 
     <div class="liq-rule"></div>
 
     <section class="liq-meta">
-      <div>
+      <div data-layout-id="block-company" data-layout-label="Datos de Green Global">
         <strong>C.I GREEN GLOBAL GROUP S.A.S</strong>
         <dl>
           <dt>NIT:</dt><dd>901.640.887-1</dd>
@@ -16,7 +16,7 @@
           <dt>FECHA DE LIQUIDACIÓN:</dt><dd>{{ fecha }}</dd>
         </dl>
       </div>
-      <div>
+      <div data-layout-id="block-provider" data-layout-label="Datos del proveedor">
         <dl>
           <dt>PROVEEDOR:</dt><dd>{{ sociedad }}</dd>
           <dt>NIT:</dt><dd>{{ nit }}</dd>
@@ -28,7 +28,7 @@
 
     <div class="liq-rule"></div>
 
-    <section class="liq-weights">
+    <section class="liq-weights" data-layout-id="block-weights" data-layout-label="Pesos y pérdida">
       <div><span>PESO RECIBIDO</span><strong>{{ peso_ini }} G</strong></div>
       <div><span>PESO FUNDIDO</span><strong>{{ peso_fin }} G</strong></div>
       <div>
@@ -38,7 +38,7 @@
     </section>
 
     <section class="liq-columns">
-      <div class="liq-labels">
+      <div class="liq-labels" data-layout-id="block-variables" data-layout-label="Variables">
         <h2>VARIABLES</h2>
         <div class="liq-box labels">
           <strong>LEY %</strong>
@@ -47,7 +47,7 @@
           <strong>VALOR METAL (COP)</strong>
         </div>
       </div>
-      <div>
+      <div data-layout-id="block-gold" data-layout-label="Columna de oro">
         <h2>ORO</h2>
         <div class="liq-box values">
           <strong>{{ ley_au }}</strong>
@@ -56,7 +56,7 @@
           <strong>{{ valor_oro }}</strong>
         </div>
       </div>
-      <div>
+      <div data-layout-id="block-silver" data-layout-label="Columna de plata">
         <h2>PLATA</h2>
         <div class="liq-box values">
           <strong>{{ ley_ag }}</strong>
@@ -67,7 +67,7 @@
       </div>
     </section>
 
-    <section class="liq-totals">
+    <section class="liq-totals" data-layout-id="block-totals" data-layout-label="Totales y retención">
       <div class="liq-total-labels">
         <strong>VALOR TOTAL METALES (COP)</strong>
         <strong>RETEFUENTE (COP)</strong>
@@ -80,7 +80,7 @@
       </div>
     </section>
 
-    <section class="liq-royalties">
+    <section class="liq-royalties" data-layout-id="block-royalties" data-layout-label="Regalías">
       <div>
         <strong>REGALÍAS ADEUDADAS POR EL PROVEEDOR</strong>
         <div class="royalty-period">{{ periodo_regalias }}</div>
@@ -90,14 +90,14 @@
       <div class="royalty-row boxes"><strong>{{ regalia_oro_total }}</strong><strong>{{ regalia_plata_total }}</strong></div>
     </section>
 
-    <section class="liq-transfer">
+    <section class="liq-transfer" data-layout-id="block-transfer" data-layout-label="Valor a transferir">
       <strong>VALOR A TRANSFERIR</strong>
       <div class="liq-box transfer-value"><strong>{{ valor_transferir }}</strong></div>
     </section>
 
-    <div class="liq-rule footer-rule"><span>RUCOM: {{ rucom }}</span></div>
+    <div class="liq-rule footer-rule" data-layout-id="block-rucom" data-layout-label="RUCOM"><span>RUCOM: {{ rucom }}</span></div>
 
-    <section class="liq-params">
+    <section class="liq-params" data-layout-id="block-parameters" data-layout-label="Parámetros">
       <h2>PARÁMETROS</h2>
       <div class="param-table">
         <strong>TC</strong>

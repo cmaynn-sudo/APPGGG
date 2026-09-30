@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import io
+import math
+import re
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 from xml.sax.saxutils import escape
@@ -32,6 +34,7 @@ def render_print_html(
     body = env.get_template(spec.render_template_name).render(**data)
     print_css = (STATIC_DIR / "print.css").read_text(encoding="utf-8")
     scale_css = print_scale_css(slug) if include_print_scale else ""
+    saved_layout_css = template_layout_css(slug)
     return f"""<!doctype html>
 <html lang="es">
 <head>
@@ -43,6 +46,7 @@ def render_print_html(
     {print_css}
     .doc-sheet {{ box-shadow: none; margin: 0 auto; }}
     {scale_css}
+    {saved_layout_css}
   </style>
 </head>
 <body class="print-export print-{slug}">
@@ -50,6 +54,61 @@ def render_print_html(
 </body>
 </html>
 """
+
+
+def template_layout_css(slug: str, layout: dict | None = None) -> str:
+    if layout is None:
+        import data_store
+
+        layout = data_store.get_template_layout(slug)
+    elements = (layout or {}).get("elements", {})
+    if not isinstance(elements, dict):
+        return ""
+
+    rules = []
+    for element_id, settings in elements.items():
+        if not isinstance(element_id, str) or not re.fullmatch(
+            r"(?:cell-[A-Z]{1,3}\d+|image-\d+|block-[a-z0-9-]+)",
+            element_id,
+        ):
+            continue
+        if not isinstance(settings, dict):
+            continue
+        x = layout_number(settings.get("x"), 0.0, -500.0, 500.0)
+        y = layout_number(settings.get("y"), 0.0, -500.0, 500.0)
+        scale = layout_number(settings.get("scale"), 1.0, 0.4, 2.5)
+        declarations = [
+            f"transform:translate({x:.2f}px, {y:.2f}px) scale({scale:.3f}) !important",
+            "transform-origin:center center !important",
+        ]
+        font_size = layout_number(settings.get("font_size"), 0.0, 0.0, 72.0)
+        if font_size > 0:
+            declarations.append(f"font-size:{font_size:.2f}px !important")
+        if settings.get("nowrap"):
+            declarations.extend(
+                (
+                    "white-space:nowrap !important",
+                    "overflow-wrap:normal !important",
+                    "word-break:normal !important",
+                )
+            )
+        text_align = str(settings.get("text_align", ""))
+        if text_align in {"left", "center", "right"}:
+            declarations.append(f"text-align:{text_align} !important")
+        rules.append(
+            f'[data-layout-id="{element_id}"]' + "{" + ";".join(declarations) + "}"
+        )
+    return "\n".join(rules)
+
+
+def layout_number(value: object, fallback: float, lower: float, upper: float) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    if not math.isfinite(number):
+        return fallback
+    return min(upper, max(lower, number))
 
 
 def save_print_html(slug: str, output_path: Path, context: dict | None = None) -> Path:

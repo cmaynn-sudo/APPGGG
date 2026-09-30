@@ -97,6 +97,10 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 self.render_regalias()
             elif path == "/parametros":
                 self.render_parametros()
+            elif path == "/control-datos":
+                self.render_data_quality(query)
+            elif path == "/editor-plantillas":
+                self.render_layout_editor(query)
             elif path == "/respaldo":
                 self.render_respaldo(query)
             elif path == "/respaldo/descargar":
@@ -232,6 +236,24 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             elif path == "/parametros/boletines":
                 data_store.update_boletin_settings(form)
                 self.redirect("/parametros")
+            elif path == "/control-datos/guardar":
+                data_store.upsert_dashboard_override(form)
+                self.redirect("/control-datos?msg=Correcci%C3%B3n%20informativa%20guardada")
+            elif path == "/control-datos/eliminar":
+                data_store.delete_dashboard_override(form.get("quality_id", ""))
+                self.redirect("/control-datos?msg=Correcci%C3%B3n%20informativa%20eliminada")
+            elif path == "/editor-plantillas/guardar":
+                slug = form.get("slug", "")
+                data_store.update_template_layout(slug, form.get("layout_json", "{}"))
+                self.redirect(
+                    f"/editor-plantillas?plantilla={quote(slug)}&msg=Dise%C3%B1o%20guardado"
+                )
+            elif path == "/editor-plantillas/restablecer":
+                slug = form.get("slug", "")
+                data_store.reset_template_layout(slug)
+                self.redirect(
+                    f"/editor-plantillas?plantilla={quote(slug)}&msg=Dise%C3%B1o%20restablecido"
+                )
             elif path == "/entregas/eliminar":
                 self.delete_folder(form)
             elif path == "/archivos/eliminar":
@@ -334,6 +356,36 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             "parametros.html",
             {
                 "settings": data_store.get_boletin_settings(store),
+            },
+        )
+
+    def render_data_quality(self, query: dict) -> None:
+        store = data_store.load_store()
+        quality = analytics.dashboard_data_quality(document_library.all_folders(), store)
+        self.render(
+            "data_quality.html",
+            {
+                "quality": quality,
+                "message": query.get("msg", [""])[0],
+            },
+        )
+
+    def render_layout_editor(self, query: dict) -> None:
+        slug = query.get("plantilla", ["recibo-metales"])[0]
+        if slug not in TEMPLATE_BY_SLUG:
+            slug = "recibo-metales"
+        spec = TEMPLATE_BY_SLUG[slug]
+        layout = data_store.get_template_layout(slug)
+        self.render(
+            "layout_editor.html",
+            {
+                "templates": TEMPLATES,
+                "template": spec,
+                "generated_template": spec.render_template_name,
+                "layout": layout,
+                "layout_css": renderer.template_layout_css(slug, layout),
+                "message": query.get("msg", [""])[0],
+                **SAMPLE_CONTEXT,
             },
         )
 

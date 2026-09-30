@@ -36,6 +36,18 @@
   z-index: 3;
 }
 
+.excel-cell-content {
+  display: block;
+  min-width: 0;
+  transform-origin: center center;
+}
+
+.print-recibo-metales [data-layout-id="cell-I15"] {
+  overflow-wrap: normal !important;
+  white-space: nowrap !important;
+  word-break: normal !important;
+}
+
 .print-recibo-metales .excel-sheet tr:nth-child(48) td:nth-child(1),
 .print-recibo-metales .excel-sheet tr:nth-child(48) td:nth-child(9),
 .print-recibo-metales .excel-sheet tr:nth-child(49) td:nth-child(1),

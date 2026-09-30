@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import re
 from datetime import date, datetime
 from pathlib import Path
@@ -16,6 +17,31 @@ import document_library
 PDF_CACHE: dict[tuple[str, int, int], dict[str, Any] | None] = {}
 PDF_ERROR_CACHE: dict[tuple[str, int, int], str] = {}
 MONTH_NUMBER = {name: number for number, name in core.MESES_ES.items()}
+DASHBOARD_FIELDS = (
+    "documento",
+    "sociedad",
+    "date",
+    "subtotal",
+    "valor_a_pagar",
+    "regalia_oro",
+    "regalia_plata",
+    "valor_pagado",
+    "peso_inicial",
+    "peso_final",
+)
+DASHBOARD_NUMBER_FIELDS = DASHBOARD_FIELDS[3:]
+DASHBOARD_FIELD_LABELS = {
+    "documento": "Documento",
+    "sociedad": "Proveedor",
+    "date": "Fecha",
+    "subtotal": "Subtotal",
+    "valor_a_pagar": "Valor a pagar",
+    "regalia_oro": "Regalías oro",
+    "regalia_plata": "Regalías plata",
+    "valor_pagado": "Valor pagado",
+    "peso_inicial": "Gramos iniciales",
+    "peso_final": "Gramos finales",
+}
 
 
 def dashboard_summary(requested_filters: dict[str, str] | None = None) -> dict[str, Any]:
@@ -24,11 +50,14 @@ def dashboard_summary(requested_filters: dict[str, str] | None = None) -> dict[s
     folders = document_library.all_folders()
     records = structured_billing_records(store)
     read_errors = 0
+    incomplete_records = 0
 
     for record, parsed in historical_billing_records(folders):
         if not parsed:
             read_errors += 1
             continue
+        if record.get("_missing_fields"):
+            incomplete_records += 1
         records.append(record)
 
     current_year = str(date.today().year)
@@ -107,6 +136,8 @@ def dashboard_summary(requested_filters: dict[str, str] | None = None) -> dict[s
         "records": selected,
         "recent": recent,
         "read_errors": read_errors,
+        "incomplete_records": incomplete_records,
+        "quality_issue_count": read_errors + incomplete_records,
         "has_historical": any(record.get("source") != "web" for record in selected),
     }
 
@@ -155,6 +186,8 @@ def structured_billing_records(store: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def historical_billing_records(folders: list[dict[str, Any]]):
+    store = data_store.load_store()
+    overrides = store.get("dashboard_overrides", {})
     for folder in folders:
         source = folder.get("source")
         if source not in {"local", "imported"}:
@@ -167,11 +200,33 @@ def historical_billing_records(folders: list[dict[str, Any]]):
             name = str(document.get("name", ""))
             if document.get("category") != "Boletines" and not name.upper().startswith("BOLETIN"):
                 continue
+            if not name.lower().endswith(".pdf"):
+                continue
             path = document_path(document)
             parsed = parse_billing_pdf(path) if path else None
+            quality_id = dashboard_quality_id(document, folder)
+            override = overrides.get(quality_id, {}) if isinstance(overrides, dict) else {}
             if not parsed:
-                yield {}, False
-                continue
+                inferred_code = document_code_from_name(name)
+                fallback_date = folder.get("date", "")
+                parsed = {
+                    "documento": inferred_code,
+                    "sociedad": "",
+                    "date": fallback_date,
+                    **{field: 0.0 for field in DASHBOARD_NUMBER_FIELDS},
+                    "_missing_fields": [
+                        field
+                        for field in DASHBOARD_FIELDS
+                        if not (field == "documento" and inferred_code)
+                        and not (field == "date" and fallback_date)
+                    ],
+                }
+                parsed = apply_dashboard_override(parsed, override)
+                if not manual_dashboard_record_ready(parsed):
+                    yield {}, False
+                    continue
+            else:
+                parsed = apply_dashboard_override(dict(parsed), override)
             parsed.update(
                 {
                     "source": source,
@@ -180,10 +235,16 @@ def historical_billing_records(folders: list[dict[str, Any]]):
                     "delivery_id": folder.get("id", ""),
                     "delivery_label": folder.get("name", "Entrega importada"),
                     "sociedad": parsed.get("sociedad", ""),
+                    "_quality_id": quality_id,
+                    "_view_url": document.get("view_url", ""),
                 }
             )
             if not parsed.get("date"):
                 parsed["date"] = folder.get("date", "")
+                if parsed["date"]:
+                    parsed["_missing_fields"] = [
+                        field for field in parsed.get("_missing_fields", []) if field != "date"
+                    ]
             parsed_date = parse_iso_date(parsed.get("date", ""))
             parsed["year"] = str(parsed_date.year if parsed_date else folder.get("year", ""))
             parsed["month_number"] = (
@@ -192,6 +253,162 @@ def historical_billing_records(folders: list[dict[str, Any]]):
                 else MONTH_NUMBER.get(str(folder.get("month", "")).upper())
             )
             yield parsed, True
+
+
+def dashboard_quality_id(document: dict[str, Any], folder: dict[str, Any]) -> str:
+    kind = str(document.get("kind") or folder.get("source") or "historical").strip().lower()
+    document_id = str(document.get("id", "")).strip()
+    if document_id:
+        return f"{kind}:{document_id}"
+    identity = "|".join(
+        (
+            str(folder.get("id", "")),
+            str(document.get("display_path") or document.get("name") or ""),
+        )
+    )
+    return f"{kind}:{hashlib.sha1(identity.encode('utf-8')).hexdigest()[:24]}"
+
+
+def document_code_from_name(name: str) -> str:
+    match = re.search(r"BOLET[IÍ]N\s*-?\s*([A-Z0-9Ñ._-]+)", str(name or ""), flags=re.IGNORECASE)
+    return match.group(1).upper() if match else ""
+
+
+def apply_dashboard_override(record: dict[str, Any], override: dict[str, Any] | None) -> dict[str, Any]:
+    result = dict(record)
+    values = (override or {}).get("values", {})
+    if not isinstance(values, dict):
+        values = {}
+    applied = set()
+    for field in DASHBOARD_FIELDS:
+        if field not in values or values[field] in (None, ""):
+            continue
+        result[field] = values[field]
+        applied.add(field)
+    result["_missing_fields"] = [
+        field for field in result.get("_missing_fields", []) if field not in applied
+    ]
+    result["_manual_override"] = bool(applied)
+    return result
+
+
+def manual_dashboard_record_ready(record: dict[str, Any]) -> bool:
+    if not parse_iso_date(record.get("date", "")):
+        return False
+    return not any(field in set(record.get("_missing_fields", [])) for field in DASHBOARD_NUMBER_FIELDS)
+
+
+def dashboard_data_quality(
+    folders: list[dict[str, Any]] | None = None,
+    store: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    folders = folders if folders is not None else document_library.all_folders()
+    store = store or data_store.load_store()
+    overrides = store.get("dashboard_overrides", {})
+    if not isinstance(overrides, dict):
+        overrides = {}
+
+    items = []
+    scanned = 0
+    readable = 0
+    incomplete = 0
+    unreadable = 0
+    corrected = 0
+
+    for folder in folders:
+        source = folder.get("source")
+        if source not in {"local", "imported"}:
+            continue
+        detail_source = "importadas" if source == "imported" else "local"
+        detail = document_library.folder_detail(detail_source, folder.get("id", ""))
+        if not detail:
+            continue
+        for document in detail.get("docs", []):
+            name = str(document.get("name", ""))
+            if document.get("category") != "Boletines" and not name.upper().startswith("BOLETIN"):
+                continue
+            if not name.lower().endswith(".pdf"):
+                continue
+
+            scanned += 1
+            quality_id = dashboard_quality_id(document, folder)
+            override = overrides.get(quality_id, {})
+            path = document_path(document)
+            parsed, reason = inspect_billing_pdf(path) if path else (
+                None,
+                "El archivo no está disponible en el almacenamiento.",
+            )
+            if parsed:
+                readable += 1
+                record = dict(parsed)
+            else:
+                unreadable += 1
+                inferred_code = document_code_from_name(name)
+                record = {
+                    "documento": inferred_code,
+                    "sociedad": "",
+                    "date": "",
+                    **{field: 0.0 for field in DASHBOARD_NUMBER_FIELDS},
+                    "_missing_fields": [
+                        field for field in DASHBOARD_FIELDS if not (field == "documento" and inferred_code)
+                    ],
+                }
+
+            if not record.get("date") and folder.get("date"):
+                record["date"] = folder.get("date", "")
+                record["_missing_fields"] = [
+                    field for field in record.get("_missing_fields", []) if field != "date"
+                ]
+            record = apply_dashboard_override(record, override)
+            missing_fields = list(dict.fromkeys(record.get("_missing_fields", [])))
+            has_override = bool(override and override.get("values"))
+            if parsed and missing_fields:
+                incomplete += 1
+            if has_override and not missing_fields:
+                corrected += 1
+            if not missing_fields and not has_override:
+                continue
+
+            display_values = {
+                field: (
+                    ""
+                    if field in missing_fields
+                    else calculations.fmt_number(record.get(field, ""), places=2)
+                    if field in DASHBOARD_NUMBER_FIELDS
+                    else record.get(field, "")
+                )
+                for field in DASHBOARD_FIELDS
+            }
+            items.append(
+                {
+                    "quality_id": quality_id,
+                    "document_name": name,
+                    "folder_name": folder.get("name", "Entrega histórica"),
+                    "folder_href": folder.get("href", ""),
+                    "view_url": document.get("view_url", ""),
+                    "download_url": document.get("download_url", ""),
+                    "values": display_values,
+                    "missing_fields": missing_fields,
+                    "missing_labels": [DASHBOARD_FIELD_LABELS[field] for field in missing_fields],
+                    "reason": reason,
+                    "readable": bool(parsed),
+                    "corrected": has_override,
+                    "complete": not missing_fields,
+                    "updated_at": override.get("updated_at", "") if isinstance(override, dict) else "",
+                }
+            )
+
+    pending = sum(not item["complete"] for item in items)
+    items.sort(key=lambda item: (item["complete"], item["folder_name"], item["document_name"]))
+    return {
+        "scanned": scanned,
+        "readable": readable,
+        "incomplete": incomplete,
+        "unreadable": unreadable,
+        "corrected": corrected,
+        "pending": pending,
+        "items": items,
+    }
 
 
 def historical_pdf_diagnostics(
@@ -306,11 +523,21 @@ def inspect_billing_pdf(path: Path) -> tuple[dict[str, Any] | None, str]:
         PDF_CACHE[cache_key] = None
         PDF_ERROR_CACHE[cache_key] = f"El PDF está dañado, protegido o no se puede abrir ({type(exc).__name__})."
         return None, PDF_ERROR_CACHE[cache_key]
-    text = re.sub(r"\s+", " ", text)
-    if not text.strip():
+    result, reason = parse_billing_text(text)
+    if not result:
         PDF_CACHE[cache_key] = None
-        PDF_ERROR_CACHE[cache_key] = "El PDF no contiene texto extraíble; puede ser una imagen escaneada."
-        return None, PDF_ERROR_CACHE[cache_key]
+        PDF_ERROR_CACHE[cache_key] = reason
+        return None, reason
+
+    PDF_CACHE[cache_key] = result
+    PDF_ERROR_CACHE[cache_key] = ""
+    return result, ""
+
+
+def parse_billing_text(raw_text: str) -> tuple[dict[str, Any] | None, str]:
+    text = re.sub(r"\s+", " ", str(raw_text or ""))
+    if not text.strip():
+        return None, "El PDF no contiene texto extraíble; puede ser una imagen escaneada."
 
     received = re.search(
         r"PESO\s+RECIBIDO\s+PESO\s+FUNDIDO.*?([0-9][0-9.,]*)\s*G\s+([0-9][0-9.,]*)\s*G",
@@ -319,14 +546,12 @@ def inspect_billing_pdf(path: Path) -> tuple[dict[str, Any] | None, str]:
     )
     subtotal = find_number(text, r"VALOR\s+TOTAL\s+METALES\s*\(COP\)\s*\$?\s*([0-9][0-9.,]*)")
     if not received or subtotal is None:
-        PDF_CACHE[cache_key] = None
         if not received and subtotal is None:
             reason = "No se reconocieron los pesos ni el valor total; el formato del boletín es diferente."
         elif not received:
             reason = "No se reconocieron los pesos recibido y fundido del boletín."
         else:
             reason = "No se reconoció el valor total de metales del boletín."
-        PDF_ERROR_CACHE[cache_key] = reason
         return None, reason
 
     raw_date = find_text(text, r"FECHA\s+DE\s+LIQUIDACI[ÓO]N:\s*(\d{1,2}/\d{1,2}/\d{4})")
@@ -338,28 +563,43 @@ def inspect_billing_pdf(path: Path) -> tuple[dict[str, Any] | None, str]:
             parsed_date = ""
 
     royalties = re.search(
-        r"REGALIAS\s+ADEUDADAS\s+POR\s+EL\s+PROVEEDOR.*?ORO\s+PLATA\s+\$\s*([0-9][0-9.,]*)\s+\$\s*([0-9][0-9.,]*)",
+        r"REGAL[IÍ](?:A|ZA)S\s+ADEUDADAS\s+POR\s+EL\s+PROVEEDOR.*?ORO\s+PLATA\s+\$\s*([0-9][0-9.,]*)\s+\$\s*([0-9][0-9.,]*)",
         text,
         flags=re.IGNORECASE,
     )
+    documento = find_text(text, r"DOCUMENTO:\s*([A-Z0-9Ñ._-]+)")
+    sociedad = find_text(text, r"PROVEEDOR:\s*(.*?)\s+NIT:")
+    valor_a_pagar = find_number(text, r"VALOR\s+A\s+PAGAR\s*\(COP\)\s*\$?\s*([0-9][0-9.,]*)")
+    valor_pagado = find_number(
+        text,
+        r"VALOR\s+(?:A\s+TRANSFERIR|PAGADO)\s*(?:\(COP\))?\s*\$?\s*([0-9][0-9.,]*)",
+    )
     result = {
-        "documento": find_text(text, r"DOCUMENTO:\s*([A-Z0-9Ñ._-]+)"),
-        "sociedad": find_text(text, r"PROVEEDOR:\s*(.*?)\s+NIT:"),
+        "documento": documento,
+        "sociedad": sociedad,
         "date": parsed_date,
         "subtotal": subtotal,
-        "valor_a_pagar": find_number(text, r"VALOR\s+A\s+PAGAR\s*\(COP\)\s*\$?\s*([0-9][0-9.,]*)") or 0.0,
+        "valor_a_pagar": valor_a_pagar if valor_a_pagar is not None else 0.0,
         "regalia_oro": parse_number(royalties.group(1)) if royalties else 0.0,
         "regalia_plata": parse_number(royalties.group(2)) if royalties else 0.0,
-        "valor_pagado": find_number(
-            text,
-            r"VALOR\s+(?:A\s+TRANSFERIR|PAGADO)\s*\$?\s*([0-9][0-9.,]*)",
-        )
-        or 0.0,
+        "valor_pagado": valor_pagado if valor_pagado is not None else 0.0,
         "peso_inicial": parse_number(received.group(1)),
         "peso_final": parse_number(received.group(2)),
     }
-    PDF_CACHE[cache_key] = result
-    PDF_ERROR_CACHE[cache_key] = ""
+    missing_fields = []
+    if not documento:
+        missing_fields.append("documento")
+    if not sociedad:
+        missing_fields.append("sociedad")
+    if not parsed_date:
+        missing_fields.append("date")
+    if valor_a_pagar is None:
+        missing_fields.append("valor_a_pagar")
+    if not royalties:
+        missing_fields.extend(("regalia_oro", "regalia_plata"))
+    if valor_pagado is None:
+        missing_fields.append("valor_pagado")
+    result["_missing_fields"] = missing_fields
     return result, ""
 
 

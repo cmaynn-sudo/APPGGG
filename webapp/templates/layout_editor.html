@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% import "icons.html" as icons %}
+
+{% block title %}Diseño de {{ template.title }}{% endblock %}
+
+{% block content %}
+<header class="page-header layout-editor-header">
+  <div>
+    <p class="eyebrow">Calibración de documentos</p>
+    <h1>Diseño de planillas</h1>
+    <p>{{ template.title }} · ajustes visuales globales para vista web y PDF.</p>
+  </div>
+  <div class="header-actions">
+    <a class="icon-action" href="/plantillas/{{ template.slug }}" data-tooltip="Abrir la vista normal de esta plantilla" aria-label="Abrir vista normal">
+      {{ icons.icon("eye") }}
+    </a>
+    <a class="icon-action" href="/parametros" data-tooltip="Cerrar el editor de diseño" aria-label="Cerrar editor">
+      {{ icons.icon("x") }}
+    </a>
+  </div>
+</header>
+
+{% if message %}
+<p class="notice success">{{ message }}</p>
+{% endif %}
+
+<section class="layout-editor-toolbar" aria-label="Herramientas de diseño">
+  <form method="get" action="/editor-plantillas" class="layout-template-form">
+    <label>Plantilla
+      <select name="plantilla" data-layout-template-select>
+        {% for option in templates %}
+        <option value="{{ option.slug }}" {% if option.slug == template.slug %}selected{% endif %}>{{ option.title }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </form>
+
+  <label>Zoom
+    <select data-layout-zoom>
+      <option value="0.5">50%</option>
+      <option value="0.65" selected>65%</option>
+      <option value="0.8">80%</option>
+      <option value="1">100%</option>
+    </select>
+  </label>
+
+  <div class="layout-toolbar-actions">
+    <form method="post" action="/editor-plantillas/restablecer">
+      <input type="hidden" name="slug" value="{{ template.slug }}">
+      <button class="icon-action danger" type="submit" data-tooltip="Restablecer toda la plantilla a su diseño original" aria-label="Restablecer diseño original">
+        {{ icons.icon("refresh") }}
+      </button>
+    </form>
+    <form method="post" action="/editor-plantillas/guardar" data-layout-save-form>
+      <input type="hidden" name="slug" value="{{ template.slug }}">
+      <input type="hidden" name="layout_json" value="{}" data-layout-json>
+      <button class="button button-small" type="submit" data-tooltip="Aplicar este diseño a la vista web y a los PDF">
+        {{ icons.icon("badge-check") }}<span>Guardar diseño</span>
+      </button>
+    </form>
+  </div>
+</section>
+
+<style id="saved-layout-style">{{ layout_css|safe }}</style>
+<script id="layout-initial-state" type="application/json">{{ layout.elements|tojson }}</script>
+
+<section class="layout-workspace" data-layout-editor>
+  <div class="layout-canvas" data-layout-canvas>
+    <div class="layout-preview-surface print-{{ template.slug }}" data-layout-preview style="--editor-zoom: .65">
+      {% include generated_template %}
+    </div>
+  </div>
+
+  <aside class="layout-inspector panel" aria-label="Propiedades del elemento">
+    <div class="panel-title">
+      <div>
+        <h2>Elemento</h2>
+        <p data-layout-selection-label>Sin selección</p>
+      </div>
+      <button class="icon-action" type="button" data-layout-reset-element data-tooltip="Restablecer solamente el elemento seleccionado" aria-label="Restablecer elemento" disabled>
+        {{ icons.icon("refresh") }}
+      </button>
+    </div>
+
+    <label class="layout-element-picker">Seleccionar
+      <select data-layout-element-select>
+        <option value="">Sin selección</option>
+      </select>
+    </label>
+
+    <fieldset class="layout-controls" data-layout-controls disabled>
+      <legend class="sr-only">Propiedades visuales</legend>
+      <div class="layout-coordinate-grid">
+        <label>Posición X
+          <input type="number" step="1" value="0" data-layout-control="x">
+        </label>
+        <label>Posición Y
+          <input type="number" step="1" value="0" data-layout-control="y">
+        </label>
+      </div>
+
+      <div class="layout-nudge-grid" aria-label="Mover elemento">
+        <button class="icon-action nudge-up" type="button" data-layout-nudge-x="0" data-layout-nudge-y="-1" data-tooltip="Mover un punto hacia arriba" aria-label="Mover arriba">{{ icons.icon("arrow-right") }}</button>
+        <button class="icon-action nudge-left" type="button" data-layout-nudge-x="-1" data-layout-nudge-y="0" data-tooltip="Mover un punto hacia la izquierda" aria-label="Mover izquierda">{{ icons.icon("arrow-right") }}</button>
+        <button class="icon-action nudge-right" type="button" data-layout-nudge-x="1" data-layout-nudge-y="0" data-tooltip="Mover un punto hacia la derecha" aria-label="Mover derecha">{{ icons.icon("arrow-right") }}</button>
+        <button class="icon-action nudge-down" type="button" data-layout-nudge-x="0" data-layout-nudge-y="1" data-tooltip="Mover un punto hacia abajo" aria-label="Mover abajo">{{ icons.icon("arrow-right") }}</button>
+      </div>
+
+      <label>Escala
+        <div class="layout-range-control">
+          <input type="range" min="0.4" max="2.5" step="0.01" value="1" data-layout-control="scale">
+          <output data-layout-scale-output>100%</output>
+        </div>
+      </label>
+
+      <label>Tamaño de texto
+        <input type="number" min="0" max="72" step="0.5" value="0" placeholder="Original" data-layout-control="font_size">
+      </label>
+
+      <label>Alineación
+        <select data-layout-control="text_align">
+          <option value="">Original</option>
+          <option value="left">Izquierda</option>
+          <option value="center">Centro</option>
+          <option value="right">Derecha</option>
+        </select>
+      </label>
+
+      <label class="layout-checkbox">
+        <input type="checkbox" data-layout-control="nowrap">
+        <span>Mantener el texto en una línea</span>
+      </label>
+    </fieldset>
+
+    <dl class="layout-inspector-meta">
+      <div><dt>Plantilla</dt><dd>{{ template.title }}</dd></div>
+      <div><dt>Último cambio</dt><dd>{{ layout.updated_at or "Diseño original" }}</dd></div>
+    </dl>
+  </aside>
+</section>
+{% endblock %}

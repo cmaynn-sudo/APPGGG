@@ -10,9 +10,15 @@
     <h1>Dashboard de recepción</h1>
     <p>Valores liquidados y pesos facturados a partir de los boletines.</p>
   </div>
-  <div class="dashboard-scope">
-    <strong>{{ dashboard.totals.boletines }}</strong>
-    <span>boletín(es) en el resultado</span>
+  <div class="dashboard-header-actions">
+    <a class="quality-access" href="/control-datos" data-tooltip="Revisar datos incompletos del dashboard" aria-label="Revisar datos incompletos del dashboard">
+      {{ icons.icon("file-search") }}
+      {% if dashboard.quality_issue_count %}<span>{{ dashboard.quality_issue_count }}</span>{% endif %}
+    </a>
+    <div class="dashboard-scope">
+      <strong>{{ dashboard.totals.boletines }}</strong>
+      <span>boletín(es) en el resultado</span>
+    </div>
   </div>
 </header>
 
@@ -151,25 +157,6 @@
     </div>
   </div>
 
-  <aside class="panel status-panel">
-    <div class="panel-title">
-      <div>
-        <h2>Estado del sistema</h2>
-        <p>Datos y almacenamiento</p>
-      </div>
-      <span class="status-dot {{ 'online' if backup_status.enabled and not backup_status.last_backup_error else 'warning' }}"></span>
-    </div>
-    <dl class="status-list">
-      <div><dt>Respaldo de cambios</dt><dd>{{ "Configurado" if backup_status.enabled else ("Bloqueado" if backup_status.required else "Solo local") }}</dd></div>
-      <div><dt>Proveedor</dt><dd>{{ backup_status.provider }}</dd></div>
-      <div><dt>Entregas visibles</dt><dd>{{ document_folders|length }}</dd></div>
-      <div><dt>Datos históricos</dt><dd>{{ "Incluidos" if dashboard.has_historical else "Sin boletines importados" }}</dd></div>
-    </dl>
-    <a class="text-action" href="/respaldo">
-      Revisar almacenamiento {{ icons.icon("arrow-right") }}
-    </a>
-  </aside>
-
   <div class="panel monthly-table-panel">
     <div class="panel-title">
       <div>
@@ -223,10 +210,11 @@
         </tfoot>
       </table>
     </div>
-    {% if dashboard.read_errors %}
+    {% if dashboard.quality_issue_count %}
     <p class="data-note">
-      {{ dashboard.read_errors }} boletín(es) importado(s) no pudieron leerse y no se incluyeron en las cifras.
-      <a href="/entregas#revision-pdf">Revisar archivos</a>
+      Hay {{ dashboard.quality_issue_count }} boletín(es) con datos pendientes:
+      {{ dashboard.read_errors }} sin leer y {{ dashboard.incomplete_records }} con campos incompletos.
+      <a href="/control-datos">Revisar datos</a>
     </p>
     {% endif %}
   </div>

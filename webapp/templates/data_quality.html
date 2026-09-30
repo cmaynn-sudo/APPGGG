@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% import "icons.html" as icons %}
+
+{% block title %}Control de datos del dashboard{% endblock %}
+
+{% block content %}
+<header class="page-header quality-page-header">
+  <div>
+    <p class="eyebrow">Herramienta de revisión</p>
+    <h1>Control de datos del dashboard</h1>
+    <p>Detecta campos ausentes en boletines históricos y permite completar únicamente la información estadística.</p>
+  </div>
+  <a class="icon-action" href="/" data-tooltip="Volver al dashboard" aria-label="Volver al dashboard">
+    {{ icons.icon("x") }}
+  </a>
+</header>
+
+{% if message %}
+<p class="notice success">{{ message }}</p>
+{% endif %}
+
+<section class="quality-summary" aria-label="Resumen del análisis">
+  <div><strong>{{ quality.scanned }}</strong><span>PDF analizados</span></div>
+  <div><strong>{{ quality.incomplete }}</strong><span>Lecturas incompletas</span></div>
+  <div><strong>{{ quality.unreadable }}</strong><span>Sin lectura automática</span></div>
+  <div><strong>{{ quality.corrected }}</strong><span>Corregidos manualmente</span></div>
+</section>
+
+<p class="quality-safety-note">
+  {{ icons.icon("file-search") }}
+  <span>Estos cambios alimentan solo el dashboard. No alteran el PDF original, las fórmulas ni los documentos de la entrega.</span>
+</p>
+
+<section class="quality-list" aria-label="Boletines que requieren control">
+  {% for item in quality["items"] %}
+  <article class="panel quality-item {{ 'resolved' if item.complete else '' }}">
+    <div class="quality-item-heading">
+      <div class="quality-document-title">
+        <span class="quality-document-icon">{{ icons.icon("file-search") }}</span>
+        <div>
+          <h2>{{ item.document_name }}</h2>
+          <p>{{ item.folder_name }}</p>
+        </div>
+      </div>
+      <div class="quality-heading-actions">
+        {% if item.complete %}
+        <span class="status-chip success">Corregido</span>
+        {% elif item.readable %}
+        <span class="status-chip warning">{{ item.missing_fields|length }} campo(s) pendiente(s)</span>
+        {% else %}
+        <span class="status-chip danger">Lectura manual</span>
+        {% endif %}
+        {% if item.view_url %}
+        <a class="icon-action" href="{{ item.view_url }}" target="_blank" data-tooltip="Abrir PDF original" aria-label="Abrir PDF original">
+          {{ icons.icon("eye") }}
+        </a>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if item.missing_labels %}
+    <p class="quality-diagnostic">
+      <strong>Faltan:</strong> {{ item.missing_labels|join(", ") }}.
+      {% if item.reason %}<span>{{ item.reason }}</span>{% endif %}
+    </p>
+    {% else %}
+    <p class="quality-diagnostic success-copy">La corrección manual está completa y ya se usa en las cifras.</p>
+    {% endif %}
+
+    <form class="quality-form" method="post" action="/control-datos/guardar">
+      <input type="hidden" name="quality_id" value="{{ item.quality_id }}">
+      <input type="hidden" name="document_name" value="{{ item.document_name }}">
+      <input type="hidden" name="folder_name" value="{{ item.folder_name }}">
+
+      <div class="quality-fields identity-fields">
+        <label class="{{ 'field-missing' if 'documento' in item.missing_fields else '' }}">Documento
+          <input name="documento" value="{{ item["values"].documento }}" placeholder="Ej. CORI-4">
+        </label>
+        <label class="{{ 'field-missing' if 'sociedad' in item.missing_fields else '' }}">Proveedor
+          <input name="sociedad" value="{{ item["values"].sociedad }}" placeholder="Razón social">
+        </label>
+        <label class="{{ 'field-missing' if 'date' in item.missing_fields else '' }}">Fecha
+          <input name="date" type="date" value="{{ item["values"].date }}">
+        </label>
+      </div>
+
+      <div class="quality-fields metric-fields">
+        <label class="{{ 'field-missing' if 'subtotal' in item.missing_fields else '' }}">Subtotal
+          <input name="subtotal" value="{{ item["values"].subtotal }}" inputmode="decimal" placeholder="0">
+        </label>
+        <label class="{{ 'field-missing' if 'valor_a_pagar' in item.missing_fields else '' }}">Valor a pagar
+          <input name="valor_a_pagar" value="{{ item["values"].valor_a_pagar }}" inputmode="decimal" placeholder="0">
+        </label>
+        <label class="{{ 'field-missing' if 'regalia_oro' in item.missing_fields else '' }}">Regalías oro
+          <input name="regalia_oro" value="{{ item["values"].regalia_oro }}" inputmode="decimal" placeholder="0">
+        </label>
+        <label class="{{ 'field-missing' if 'regalia_plata' in item.missing_fields else '' }}">Regalías plata
+          <input name="regalia_plata" value="{{ item["values"].regalia_plata }}" inputmode="decimal" placeholder="0">
+        </label>
+        <label class="{{ 'field-missing' if 'valor_pagado' in item.missing_fields else '' }}">Valor pagado
+          <input name="valor_pagado" value="{{ item["values"].valor_pagado }}" inputmode="decimal" placeholder="0">
+        </label>
+        <label class="{{ 'field-missing' if 'peso_inicial' in item.missing_fields else '' }}">Gramos iniciales
+          <input name="peso_inicial" value="{{ item["values"].peso_inicial }}" inputmode="decimal" placeholder="0">
+        </label>
+        <label class="{{ 'field-missing' if 'peso_final' in item.missing_fields else '' }}">Gramos finales
+          <input name="peso_final" value="{{ item["values"].peso_final }}" inputmode="decimal" placeholder="0">
+        </label>
+      </div>
+
+      <div class="quality-form-actions">
+        <button class="button button-small" type="submit" data-tooltip="Guardar estas cifras solo para el dashboard">
+          {{ icons.icon("badge-check") }}<span>Guardar corrección</span>
+        </button>
+        {% if item.folder_href %}
+        <a class="text-action" href="{{ item.folder_href }}">Abrir entrega {{ icons.icon("arrow-right") }}</a>
+        {% endif %}
+      </div>
+    </form>
+
+    {% if item.corrected %}
+    <form class="quality-delete-form" method="post" action="/control-datos/eliminar">
+      <input type="hidden" name="quality_id" value="{{ item.quality_id }}">
+      <button class="icon-action danger" type="submit" data-tooltip="Eliminar la corrección manual y volver a la lectura del PDF" aria-label="Eliminar corrección manual">
+        {{ icons.icon("trash") }}
+      </button>
+    </form>
+    {% endif %}
+  </article>
+  {% else %}
+  <div class="panel empty-state quality-empty">
+    {{ icons.icon("badge-check") }}
+    <strong>No hay datos pendientes</strong>
+    <span>Los boletines históricos tienen la información necesaria para alimentar el dashboard.</span>
+  </div>
+  {% endfor %}
+</section>
+{% endblock %}

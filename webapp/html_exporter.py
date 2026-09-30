@@ -190,6 +190,7 @@ def extract_images(ws: Any, spec: TemplateSpec, min_col: int, min_row: int) -> l
             height = int(getattr(image, "height", 80) or 80)
         snippets.append(
             f'<img class="excel-image" src="/static/generated/{html.escape(name)}" '
+            f'data-layout-id="image-{idx}" data-layout-label="Imagen {idx}" '
             f'style="left:{x:.0f}px;top:{y:.0f}px;width:{width}px;height:{height}px" alt="">'
         )
     return snippets
@@ -276,6 +277,12 @@ def render_template(spec: TemplateSpec) -> str:
             style = cell_style_to_css(cell)
             attrs.append(f'style="{html.escape(style, quote=True)}"')
             content = cell_html(cell, data_cell, spec.fields)
+            if content.strip():
+                attrs.append(f'data-cell="{coord}"')
+                content = (
+                    f'<span class="excel-cell-content" data-layout-id="cell-{coord}" '
+                    f'data-layout-label="Celda {coord}">{content}</span>'
+                )
             lines.append(f"<td {' '.join(attrs)}>{content}</td>")
         lines.append("</tr>")
 

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% import "icons.html" as icons %}
 
 {% block title %}{{ template.title }}{% endblock %}
 
@@ -11,6 +12,9 @@
   </div>
   <div class="header-actions">
     <a class="button button-secondary" href="/">Volver</a>
+    <a class="icon-action" href="/editor-plantillas?plantilla={{ template.slug }}" data-tooltip="Ajustar posiciones y tamaños" aria-label="Editar diseño">
+      {{ icons.icon("sliders") }}
+    </a>
     <a class="button" href="/plantillas/{{ template.slug }}/print" target="_blank">Imprimir</a>
   </div>
 </header>

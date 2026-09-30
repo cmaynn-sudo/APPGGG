@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import shutil
@@ -12,7 +13,7 @@ from typing import Any
 import calculations
 import core
 import persistence
-from template_catalog import WEBAPP_DIR
+from template_catalog import TEMPLATE_BY_SLUG, WEBAPP_DIR
 
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", str(WEBAPP_DIR / "data")))
@@ -22,6 +23,18 @@ DEFAULT_BOLETIN_SETTINGS = {
     "precio_negociacion_porcentaje": "97,5",
     "retencion_porcentaje": "2,5",
 }
+DASHBOARD_OVERRIDE_TEXT_FIELDS = ("documento", "sociedad", "date")
+DASHBOARD_OVERRIDE_NUMBER_FIELDS = (
+    "subtotal",
+    "valor_a_pagar",
+    "regalia_oro",
+    "regalia_plata",
+    "valor_pagado",
+    "peso_inicial",
+    "peso_final",
+)
+LAYOUT_ELEMENT_ID_RE = re.compile(r"^(?:cell-[A-Z]{1,3}\d+|image-\d+|block-[a-z0-9-]+)$")
+LAYOUT_ALIGNMENTS = {"", "left", "center", "right"}
 
 
 def _empty_store() -> dict[str, Any]:
@@ -32,6 +45,8 @@ def _empty_store() -> dict[str, Any]:
         "entregas": [],
         "local_folders": [],
         "uploaded_files": [],
+        "dashboard_overrides": {},
+        "template_layouts": {},
         "active_entrega_id": "",
     }
 
@@ -68,6 +83,12 @@ def normalize_store(store: dict[str, Any], sync_backup: bool = True) -> dict[str
         if "files" not in folder:
             folder["files"] = []
             changed = True
+    if not isinstance(store.get("dashboard_overrides"), dict):
+        store["dashboard_overrides"] = {}
+        changed = True
+    if not isinstance(store.get("template_layouts"), dict):
+        store["template_layouts"] = {}
+        changed = True
     if changed:
         save_store(store, sync_backup=sync_backup)
     return store
@@ -147,6 +168,136 @@ def update_boletin_settings(form: dict[str, str]) -> dict[str, Any]:
     store["boletin_settings"] = settings
     save_store(store)
     return settings
+
+
+def upsert_dashboard_override(form: dict[str, str]) -> dict[str, Any]:
+    quality_id = str(form.get("quality_id", "")).strip()
+    if not quality_id or len(quality_id) > 180:
+        raise ValueError("No se pudo identificar el boletín que se va a corregir.")
+
+    values: dict[str, Any] = {}
+    for field in DASHBOARD_OVERRIDE_TEXT_FIELDS:
+        raw = str(form.get(field, "")).strip()
+        if not raw:
+            continue
+        if field == "date":
+            try:
+                date.fromisoformat(raw)
+            except ValueError as exc:
+                raise ValueError("La fecha informativa no es válida.") from exc
+        values[field] = raw
+
+    for field in DASHBOARD_OVERRIDE_NUMBER_FIELDS:
+        raw = str(form.get(field, "")).strip()
+        if not raw:
+            continue
+        try:
+            values[field] = core.parse_decimal_input(raw)
+        except ValueError as exc:
+            raise ValueError("Todos los valores del dashboard deben ser numéricos.") from exc
+
+    if not values:
+        raise ValueError("Ingresa al menos un dato para guardar la corrección informativa.")
+
+    override = {
+        "quality_id": quality_id,
+        "document_name": str(form.get("document_name", "")).strip(),
+        "folder_name": str(form.get("folder_name", "")).strip(),
+        "values": values,
+        "updated_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    store = load_store()
+    store.setdefault("dashboard_overrides", {})[quality_id] = override
+    save_store(store)
+    return override
+
+
+def delete_dashboard_override(quality_id: str) -> None:
+    target = str(quality_id or "").strip()
+    store = load_store()
+    overrides = store.setdefault("dashboard_overrides", {})
+    if target not in overrides:
+        raise ValueError("La corrección informativa no existe.")
+    del overrides[target]
+    save_store(store)
+
+
+def get_template_layout(slug: str, store: dict[str, Any] | None = None) -> dict[str, Any]:
+    if slug not in TEMPLATE_BY_SLUG:
+        return {"elements": {}}
+    data = store or load_store()
+    layout = data.get("template_layouts", {}).get(slug, {})
+    if not isinstance(layout, dict):
+        return {"elements": {}}
+    elements = layout.get("elements", {})
+    return {
+        "elements": elements if isinstance(elements, dict) else {},
+        "updated_at": str(layout.get("updated_at", "")),
+    }
+
+
+def update_template_layout(slug: str, raw_layout: str) -> dict[str, Any]:
+    if slug not in TEMPLATE_BY_SLUG:
+        raise ValueError("La plantilla seleccionada no existe.")
+    try:
+        submitted = json.loads(raw_layout or "{}")
+    except json.JSONDecodeError as exc:
+        raise ValueError("Los ajustes visuales no tienen un formato válido.") from exc
+    if not isinstance(submitted, dict):
+        raise ValueError("Los ajustes visuales no tienen un formato válido.")
+    if len(submitted) > 400:
+        raise ValueError("La plantilla contiene demasiados ajustes individuales.")
+
+    elements: dict[str, dict[str, Any]] = {}
+    for element_id, raw_settings in submitted.items():
+        if not isinstance(element_id, str) or not LAYOUT_ELEMENT_ID_RE.fullmatch(element_id):
+            continue
+        if not isinstance(raw_settings, dict):
+            continue
+        settings: dict[str, Any] = {}
+        for name, fallback, lower, upper in (
+            ("x", 0.0, -500.0, 500.0),
+            ("y", 0.0, -500.0, 500.0),
+            ("scale", 1.0, 0.4, 2.5),
+            ("font_size", 0.0, 0.0, 72.0),
+        ):
+            try:
+                value = float(raw_settings.get(name, fallback))
+            except (TypeError, ValueError):
+                value = fallback
+            if not math.isfinite(value):
+                value = fallback
+            value = min(upper, max(lower, value))
+            if name in {"x", "y"} and abs(value) < 0.01:
+                value = 0.0
+            if name == "scale" and abs(value - 1.0) < 0.001:
+                value = 1.0
+            if name == "font_size" and value < 1:
+                value = 0.0
+            settings[name] = round(value, 2)
+        settings["nowrap"] = bool(raw_settings.get("nowrap", False))
+        alignment = str(raw_settings.get("text_align", "")).strip().lower()
+        settings["text_align"] = alignment if alignment in LAYOUT_ALIGNMENTS else ""
+        elements[element_id] = settings
+
+    layout = {
+        "elements": elements,
+        "updated_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    store = load_store()
+    store.setdefault("template_layouts", {})[slug] = layout
+    save_store(store)
+    return layout
+
+
+def reset_template_layout(slug: str) -> None:
+    if slug not in TEMPLATE_BY_SLUG:
+        raise ValueError("La plantilla seleccionada no existe.")
+    store = load_store()
+    layouts = store.setdefault("template_layouts", {})
+    if slug in layouts:
+        del layouts[slug]
+        save_store(store)
 
 
 def normalize_percent_field(raw: str, fallback: str) -> str:
