@@ -306,6 +306,7 @@ def web_folders() -> list[dict[str, Any]]:
                 "document_count": len(docs) + len(uploads),
                 "file_count": len(docs) + len(uploads),
                 "item_count": len(entrega.get("items", [])),
+                "finalizada": bool(entrega.get("finalizada")),
                 "href": f"/entregas/web/{quote(entrega.get('id', ''))}",
                 "entrega": entrega,
             }
@@ -335,6 +336,8 @@ def folder_detail(source: str, folder_id: str) -> dict[str, Any] | None:
             "year": entrega.get("year", ""),
             "month": entrega.get("month", ""),
             "date": entrega.get("fecha", ""),
+            "finalizada": bool(entrega.get("finalizada")),
+            "finalizada_at": entrega.get("finalizada_at", ""),
             "docs": docs,
             "entrega": entrega,
             "can_delete_folder": True,

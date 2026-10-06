@@ -200,6 +200,12 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             elif path == "/documentos/activar":
                 data_store.set_active_entrega(form.get("entrega_id", ""))
                 self.redirect(form.get("next", "/documentos"))
+            elif path == "/documentos/finalizar":
+                data_store.finalize_entrega(form.get("entrega_id", ""))
+                self.redirect(form.get("next", "/documentos?finalizada=ok") or "/documentos?finalizada=ok")
+            elif path == "/documentos/reabrir":
+                data_store.reopen_entrega(form.get("entrega_id", ""))
+                self.redirect(form.get("next", "/documentos?reabierta=ok") or "/documentos?reabierta=ok")
             elif path == "/documentos/agregar":
                 data_store.add_entrega_item(form)
                 self.redirect("/documentos")
@@ -298,17 +304,23 @@ class RecepcionHandler(BaseHTTPRequestHandler):
         entrega = data_store.get_entrega()
         context = {
             "sociedades": store.get("sociedades", []),
-            "entregas": data_store.list_entregas(),
+            "entregas": data_store.list_entregas(include_finalized=False),
+            "all_entregas": data_store.list_entregas(),
             "entrega": entrega,
             "preliminares_context": calculations.preliminares_context(entrega.get("items", [])) if entrega else None,
             "generated_docs": document_library.generated_documents_for_entrega(entrega) if entrega else [],
             "historical_created": query.get("historica", [""])[0] == "ok",
+            "finalized_success": query.get("finalizada", [""])[0] == "ok",
+            "reopened_success": query.get("reabierta", [""])[0] == "ok",
         }
         self.render("documentos.html", context)
 
     def render_leyes(self) -> None:
         entrega = data_store.get_entrega()
-        self.render("leyes.html", {"entrega": entrega, "entregas": data_store.list_entregas()})
+        self.render(
+            "leyes.html",
+            {"entrega": entrega, "entregas": data_store.list_entregas(include_finalized=False)},
+        )
 
     def render_boletines(self) -> None:
         store = data_store.load_store()
@@ -318,7 +330,7 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             "boletines.html",
             {
                 "entrega": entrega,
-                "entregas": data_store.list_entregas(),
+                "entregas": data_store.list_entregas(include_finalized=False),
                 "boletines": boletines,
                 "regalias": store.get("regalias", []),
                 "settings": data_store.get_entrega_boletin_settings(entrega, store) if entrega else data_store.get_boletin_settings(store),
@@ -327,20 +339,30 @@ class RecepcionHandler(BaseHTTPRequestHandler):
         )
 
     def render_certificados(self, query: dict) -> None:
+        period = "annual" if query.get("period", [""])[0] == "annual" else "monthly"
         year = query.get("year", [""])[0]
         month = query.get("month", [""])[0]
-        if not year or not month:
-            current_year, current_month = core.current_period()
-            year = year or current_year
-            month = month or current_month
+        current_year, current_month = core.current_period()
+        year = year or current_year
+        if period == "monthly":
+            month = month if month in core.MESES_ORDEN else current_month
+        else:
+            month = ""
+        years = sorted(
+            {e.get("year", "") for e in data_store.list_entregas() if e.get("year")},
+            reverse=True,
+        ) or [year]
+        if year not in years:
+            year = years[0]
         self.render(
             "certificados.html",
             {
+                "period": period,
                 "year": year,
                 "month": month,
-                "years": sorted({e.get("year", "") for e in data_store.list_entregas() if e.get("year")}) or [year],
+                "years": years,
                 "months": core.MESES_ORDEN,
-                "groups": data_store.certificado_groups(year, month),
+                "groups": data_store.certificado_groups(year, month if period == "monthly" else None),
             },
         )
 
@@ -502,6 +524,28 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             self.send_print(
                 "certificado-regalias",
                 calculations.certificado_context(group["sociedad"], group["nit"], group["boletines"]),
+                download=download,
+                filename=filename,
+            )
+            return
+
+        if doc_type == "certificado-anual" and len(parts) >= 4:
+            year = parts[2]
+            key = parts[3]
+            group = next((g for g in data_store.certificado_groups(year) if g["key"] == key), None)
+            if not group:
+                self.send_error(HTTPStatus.NOT_FOUND, "Certificado anual no encontrado")
+                return
+            filename = f"CERTIFICADO ANUAL DE REGALÍAS {group['sociedad']} - {year}.pdf"
+            context = calculations.certificado_context(
+                group["sociedad"],
+                group["nit"],
+                group["boletines"],
+            )
+            context.update({"year": year, "periodo_label": f"Año {year}"})
+            self.send_print(
+                "certificado-anual",
+                context,
                 download=download,
                 filename=filename,
             )

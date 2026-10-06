@@ -175,6 +175,27 @@ a {
   padding-top: 12px;
 }
 
+.app-signature {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 2px;
+  padding: 10px 10px 2px;
+}
+
+.app-signature span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-signature strong {
+  color: var(--accent);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
 .theme-toggle {
   background: transparent;
   cursor: pointer;
@@ -589,6 +610,10 @@ label {
   margin: 0;
 }
 
+.inline-action-form {
+  margin: 0;
+}
+
 .inline-form {
   align-items: center;
   display: grid;
@@ -751,6 +776,16 @@ label {
 .document-row span {
   color: var(--muted);
   font-size: 13px;
+}
+
+.folder-status-chip,
+.delivery-status-chip {
+  margin: 2px 0 0;
+  width: max-content;
+}
+
+.delivery-status-chip {
+  margin-top: 10px;
 }
 
 .folder-count {
@@ -1195,6 +1230,64 @@ html[data-theme="dark"] .summary-icon.kpi-final {
   grid-column: 1 / -1;
 }
 
+.chart-panel-title {
+  align-items: center;
+}
+
+.chart-panel-actions {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.chart-mode-switch,
+.certificate-mode-switch {
+  background: var(--panel-strong);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: inline-flex;
+  padding: 3px;
+}
+
+.chart-mode-switch button,
+.certificate-mode-switch a {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  display: inline-flex;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  gap: 6px;
+  min-height: 34px;
+  padding: 7px 11px;
+}
+
+.chart-mode-switch button.active,
+.certificate-mode-switch a.active {
+  background: var(--panel);
+  box-shadow: 0 2px 8px rgba(20, 45, 36, 0.1);
+  color: var(--accent);
+}
+
+.chart-mode-switch .action-icon-svg,
+.certificate-mode-switch .action-icon-svg {
+  height: 15px;
+  width: 15px;
+}
+
+.chart-year {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+[data-chart-view][hidden] {
+  display: none;
+}
+
 .monthly-table-panel {
   grid-column: 1 / -1;
 }
@@ -1257,6 +1350,75 @@ html[data-theme="dark"] .summary-icon.kpi-final {
   color: var(--muted);
   font-size: 10px;
   text-transform: uppercase;
+}
+
+.chart-legend {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: flex-end;
+  margin: 12px 0 -10px;
+}
+
+.chart-legend span {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 700;
+  gap: 6px;
+}
+
+.chart-legend i {
+  border-radius: 2px;
+  display: inline-block;
+  height: 9px;
+  width: 9px;
+}
+
+.chart-legend .initial,
+.weight-chart-pair i.initial {
+  background: var(--info);
+}
+
+.chart-legend .final,
+.weight-chart-pair i.final {
+  background: var(--accent);
+}
+
+.weight-chart-pair {
+  align-items: end;
+  display: flex;
+  gap: 4px;
+  height: 100%;
+  justify-content: center;
+  width: min(54px, 88%);
+}
+
+.weight-chart-pair > span {
+  align-items: end;
+  background: var(--panel-strong);
+  border-radius: 4px 4px 2px 2px;
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+  width: 50%;
+}
+
+.weight-chart-pair i {
+  border-radius: 4px 4px 2px 2px;
+  display: block;
+  transition: height 240ms ease;
+  width: 100%;
+}
+
+.certificate-mode-switch {
+  margin: 12px 0 18px;
+}
+
+.certificate-filter {
+  grid-template-columns: repeat(2, minmax(170px, 1fr)) auto;
+  max-width: 760px;
 }
 
 .text-action {
@@ -1728,6 +1890,20 @@ html[data-theme="dark"] .summary-icon.kpi-final {
   font-size: 14px;
   line-height: 1.5;
   margin: 9px 0 0;
+}
+
+.login-signature {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  margin: 10px 0 0;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.login-signature strong {
+  color: #ffffff;
+  font-weight: 800;
 }
 
 .login-panel .form-stack {
@@ -2590,6 +2766,17 @@ html[data-theme="dark"] .layout-canvas {
     padding-top: 0;
   }
 
+  .app-signature {
+    border-left: 1px solid var(--line);
+    border-top: 0;
+    flex: 0 0 auto;
+    padding: 2px 0 2px 10px;
+  }
+
+  .app-signature span {
+    display: none;
+  }
+
   .sidebar-control,
   .logout-button {
     width: auto;
@@ -2635,6 +2822,11 @@ html[data-theme="dark"] .layout-canvas {
 
   .dashboard-layout {
     grid-template-columns: 1fr;
+  }
+
+  .certificate-filter {
+    grid-template-columns: 1fr;
+    max-width: none;
   }
 
   .monthly-table-panel {
@@ -2817,6 +3009,34 @@ html[data-theme="dark"] .layout-canvas {
 
   .dashboard-header {
     align-items: stretch;
+  }
+
+  .chart-panel-title {
+    align-items: stretch;
+  }
+
+  .chart-panel-actions {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .chart-mode-switch {
+    flex: 1 1 auto;
+  }
+
+  .chart-mode-switch button {
+    flex: 1 1 50%;
+    justify-content: center;
+  }
+
+  .certificate-mode-switch {
+    display: flex;
+    width: 100%;
+  }
+
+  .certificate-mode-switch a {
+    flex: 1 1 50%;
+    justify-content: center;
   }
 
   .dashboard-scope {

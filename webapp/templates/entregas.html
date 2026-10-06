@@ -237,6 +237,11 @@
     <div class="folder-main">
       <strong>{{ folder.name }}</strong>
       <small>{{ folder.source_label }} · {{ folder.year }} {{ folder.month }}{% if folder.date %} · {{ folder.date }}{% endif %}</small>
+      {% if folder.source == "web" %}
+      <span class="status-chip {{ 'success' if folder.finalizada else 'warning' }} folder-status-chip">
+        {{ "Finalizada" if folder.finalizada else "Activa" }}
+      </span>
+      {% endif %}
     </div>
     <div class="folder-count">
       <span>{{ folder.document_count }}</span>

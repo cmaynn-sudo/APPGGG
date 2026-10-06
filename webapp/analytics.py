@@ -103,8 +103,21 @@ def dashboard_summary(requested_filters: dict[str, str] | None = None) -> dict[s
 
     totals = summarize_rows(selected)
     max_subtotal = max((month["subtotal"] for month in months), default=0.0)
+    max_weight = max(
+        (max(month["peso_inicial"], month["peso_final"]) for month in months),
+        default=0.0,
+    )
     for month in months:
-        month["bar_percent"] = round(month["subtotal"] / max_subtotal * 100, 2) if max_subtotal else 0
+        month["subtotal_bar_percent"] = (
+            round(month["subtotal"] / max_subtotal * 100, 2) if max_subtotal else 0
+        )
+        month["peso_inicial_bar_percent"] = (
+            round(month["peso_inicial"] / max_weight * 100, 2) if max_weight else 0
+        )
+        month["peso_final_bar_percent"] = (
+            round(month["peso_final"] / max_weight * 100, 2) if max_weight else 0
+        )
+        month["bar_percent"] = month["subtotal_bar_percent"]
         format_summary(month)
     format_summary(totals)
 

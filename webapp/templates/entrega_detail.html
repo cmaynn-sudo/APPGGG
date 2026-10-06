@@ -9,6 +9,11 @@
     <p class="eyebrow">Carpeta {{ folder.source_label }}</p>
     <h1>{{ folder.name }}</h1>
     <p>{{ folder.year }} {{ folder.month }}{% if folder.date %} · {{ folder.date }}{% endif %}</p>
+    {% if folder.source == "web" %}
+    <p class="status-chip {{ 'success' if folder.finalizada else 'warning' }} delivery-status-chip">
+      {{ "Finalizada" if folder.finalizada else "Activa" }}
+    </p>
+    {% endif %}
     {% if folder.source_relative_path %}
     <p class="source-path">Ruta original: {{ folder.source_relative_path }}</p>
     {% endif %}
@@ -16,6 +21,16 @@
   <div class="header-actions">
     <a class="button button-secondary" href="/entregas" data-tooltip="Volver a la biblioteca de entregas">Carpetas</a>
     <a class="button" href="{{ folder.zip_url }}" data-tooltip="Descargar la carpeta completa">Descargar ZIP</a>
+    {% if folder.source == "web" %}
+    <form class="inline-action-form" method="post" action="/documentos/{{ 'reabrir' if folder.finalizada else 'finalizar' }}">
+      <input type="hidden" name="entrega_id" value="{{ folder.id }}">
+      <input type="hidden" name="next" value="/entregas/web/{{ folder.id }}">
+      <button class="button button-ghost" type="submit" data-tooltip="{{ 'Reabrir esta entrega para editarla' if folder.finalizada else 'Cerrar esta entrega y retirarla del trabajo activo' }}">
+        {{ icons.icon("refresh" if folder.finalizada else "archive") }}
+        <span>{{ "Reabrir entrega" if folder.finalizada else "Finalizar entrega" }}</span>
+      </button>
+    </form>
+    {% endif %}
   </div>
 </header>
 

@@ -17,6 +17,12 @@
   La entrega histórica quedó creada y activa. Agrega sus sociedades, pesos y leyes; los documentos usarán la fecha y parámetros que elegiste.
 </section>
 {% endif %}
+{% if finalized_success %}
+<section class="notice success">La entrega quedó finalizada y salió del flujo de trabajo activo.</section>
+{% endif %}
+{% if reopened_success %}
+<section class="notice success">La entrega quedó reabierta y activa para continuar trabajando.</section>
+{% endif %}
 
 <section class="work-grid">
   <div class="panel">
@@ -41,9 +47,17 @@
     <div class="action-row">
       <a class="button" href="/print/preliminares/{{ entrega.id }}" target="_blank" data-tooltip="Ver preliminares en pantalla">Preliminares</a>
       <a class="button button-secondary" href="/entregas/web/{{ entrega.id }}" data-tooltip="Abrir carpeta de esta entrega">Abrir carpeta</a>
+      <form class="inline-action-form" method="post" action="/documentos/finalizar">
+        <input type="hidden" name="entrega_id" value="{{ entrega.id }}">
+        <input type="hidden" name="next" value="/documentos?finalizada=ok">
+        <button class="button button-ghost" type="submit" data-tooltip="Cerrar esta entrega y retirarla del trabajo activo">
+          {{ icons.icon("archive") }}<span>Finalizar entrega</span>
+        </button>
+      </form>
     </div>
     {% else %}
-    <p class="muted">Crea una entrega para empezar.</p>
+    <p class="muted">No hay entregas activas. Crea una nueva o reabre una entrega desde la biblioteca.</p>
+    {% if all_entregas %}<a class="text-action" href="/entregas">Revisar entregas {{ icons.icon("arrow-right") }}</a>{% endif %}
     {% endif %}
   </div>
 </section>
@@ -52,7 +66,7 @@
 <section class="panel section-gap">
   <div class="panel-title">
     <h2>Cambiar entrega activa</h2>
-    <span>{{ entregas|length }} entrega(s) web</span>
+    <span>{{ entregas|length }} entrega(s) activa(s)</span>
   </div>
   <form class="form-grid" method="post" action="/documentos/activar">
     <input type="hidden" name="next" value="/documentos">

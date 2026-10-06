@@ -1,0 +1,76 @@
+<section class="print-document annual-certificate" data-template="certificado-anual">
+  <div class="annual-certificate-sheet">
+    <header class="annual-certificate-header">
+      <div>
+        <p>C.I. GREEN GLOBAL GROUP S.A.S.</p>
+        <h1>Certificado anual de regalías</h1>
+        <span>{{ periodo_label }}</span>
+      </div>
+      <img src="/static/generated/logo.png" alt="Green Global Group">
+    </header>
+
+    <p class="annual-certificate-date">Medellín, {{ fecha_larga }}</p>
+    <p class="annual-certificate-intro">
+      C.I. Green Global Group S.A.S., identificada con NIT 901.640.887-1, certifica que al
+      proveedor relacionado se le tramitaron y pagaron las regalías correspondientes ante la
+      Agencia Nacional de Minería durante el período indicado.
+    </p>
+
+    <dl class="annual-certificate-provider">
+      <div><dt>Sociedad</dt><dd>{{ sociedad }}</dd></div>
+      <div><dt>NIT</dt><dd>{{ nit }}</dd></div>
+      <div><dt>Período</dt><dd>{{ periodo_label }}</dd></div>
+      <div><dt>Boletines</dt><dd>{{ boletines|length }}</dd></div>
+    </dl>
+
+    <table class="annual-certificate-table">
+      <thead>
+        <tr>
+          <th>Documento</th>
+          <th>Fecha</th>
+          <th>Mes</th>
+          <th>Finos oro</th>
+          <th>Finos plata</th>
+          <th>Regalía oro</th>
+          <th>Regalía plata</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in boletines %}
+        <tr>
+          <td>{{ item.documento }}</td>
+          <td>{{ item.fecha }}</td>
+          <td>{{ item.mes|capitalize }}</td>
+          <td class="number-cell">{{ item.finos_oro }}</td>
+          <td class="number-cell">{{ item.finos_plata }}</td>
+          <td class="number-cell">{{ item.regalia_oro }}</td>
+          <td class="number-cell">{{ item.regalia_plata }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <th colspan="3">Total anual</th>
+          <th class="number-cell">{{ totales.finos_oro }}</th>
+          <th class="number-cell">{{ totales.finos_plata }}</th>
+          <th class="number-cell">{{ totales.regalia_oro }}</th>
+          <th class="number-cell">{{ totales.regalia_plata }}</th>
+        </tr>
+      </tfoot>
+    </table>
+
+    <div class="annual-certificate-notes">
+      <strong>Observaciones</strong>
+      <p>Las regalías relacionadas fueron consignadas a la Agencia Nacional de Minería dentro del tiempo estipulado por la norma.</p>
+      <p>Las cantidades relacionadas corresponden a joyería en desuso.</p>
+    </div>
+
+    <footer class="annual-certificate-signature">
+      <img src="/static/generated/firma.png" alt="Firma autorizada">
+      <div>
+        <strong>C.I. GREEN GLOBAL GROUP S.A.S.</strong>
+        <span>NIT 901.640.887-1</span>
+      </div>
+    </footer>
+  </div>
+</section>

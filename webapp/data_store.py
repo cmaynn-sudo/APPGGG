@@ -71,6 +71,12 @@ def normalize_store(store: dict[str, Any], sync_backup: bool = True) -> dict[str
         if "items" not in entrega:
             entrega["items"] = []
             changed = True
+        if "finalizada" not in entrega:
+            entrega["finalizada"] = False
+            changed = True
+        if "finalizada_at" not in entrega:
+            entrega["finalizada_at"] = ""
+            changed = True
         if "parametros" not in entrega:
             entrega["parametros"] = {
                 "mes_regalias": entrega.get("month", core.mes_actual_es()),
@@ -352,6 +358,8 @@ def create_entrega(
         "year": str(delivery_date.year),
         "month": month,
         "name": f"ENTREGA °{numero.strip()} - ({delivery_date.isoformat()})",
+        "finalizada": False,
+        "finalizada_at": "",
         "items": [],
         "parametros": {
             "mes_regalias": royalty_month,
@@ -400,10 +408,45 @@ def create_historical_entrega(form: dict[str, str]) -> dict[str, Any]:
 
 def set_active_entrega(entrega_id: str) -> None:
     store = load_store()
-    if not any(entrega.get("id") == entrega_id for entrega in store.get("entregas", [])):
+    entrega = next((row for row in store.get("entregas", []) if row.get("id") == entrega_id), None)
+    if not entrega:
         raise ValueError("Entrega no encontrada.")
+    if entrega.get("finalizada"):
+        raise ValueError("La entrega está finalizada. Reábrela antes de continuar trabajando en ella.")
     store["active_entrega_id"] = entrega_id
     save_store(store)
+
+
+def finalize_entrega(entrega_id: str) -> dict[str, Any]:
+    store = load_store()
+    entrega = next((row for row in store.get("entregas", []) if row.get("id") == entrega_id), None)
+    if not entrega:
+        raise ValueError("Entrega no encontrada.")
+    entrega["finalizada"] = True
+    entrega["finalizada_at"] = datetime.now().isoformat(timespec="seconds")
+    if store.get("active_entrega_id") == entrega_id:
+        store["active_entrega_id"] = next(
+            (
+                row.get("id", "")
+                for row in reversed(store.get("entregas", []))
+                if not row.get("finalizada") and row.get("id") != entrega_id
+            ),
+            "",
+        )
+    save_store(store)
+    return entrega
+
+
+def reopen_entrega(entrega_id: str) -> dict[str, Any]:
+    store = load_store()
+    entrega = next((row for row in store.get("entregas", []) if row.get("id") == entrega_id), None)
+    if not entrega:
+        raise ValueError("Entrega no encontrada.")
+    entrega["finalizada"] = False
+    entrega["finalizada_at"] = ""
+    store["active_entrega_id"] = entrega_id
+    save_store(store)
+    return entrega
 
 
 def delete_entrega(entrega_id: str) -> None:
@@ -420,30 +463,64 @@ def delete_entrega(entrega_id: str) -> None:
     upload_dir = UPLOADS_DIR / "web" / entrega_id
     if upload_dir.exists():
         shutil.rmtree(upload_dir)
-    store["active_entrega_id"] = store["entregas"][-1]["id"] if store.get("entregas") else ""
+    store["active_entrega_id"] = next(
+        (
+            entrega.get("id", "")
+            for entrega in reversed(store.get("entregas", []))
+            if not entrega.get("finalizada")
+        ),
+        "",
+    )
     save_store(store)
 
 
 def get_entrega(entrega_id: str | None = None) -> dict[str, Any] | None:
     store = load_store()
-    target = entrega_id or store.get("active_entrega_id")
-    for entrega in store.get("entregas", []):
-        if entrega.get("id") == target:
-            return entrega
-    return store.get("entregas", [])[-1] if store.get("entregas") else None
+    if entrega_id:
+        return next(
+            (entrega for entrega in store.get("entregas", []) if entrega.get("id") == entrega_id),
+            None,
+        )
+    target = store.get("active_entrega_id")
+    active = next(
+        (
+            entrega
+            for entrega in store.get("entregas", [])
+            if entrega.get("id") == target and not entrega.get("finalizada")
+        ),
+        None,
+    )
+    if active:
+        return active
+    return next(
+        (entrega for entrega in reversed(store.get("entregas", [])) if not entrega.get("finalizada")),
+        None,
+    )
 
 
-def list_entregas() -> list[dict[str, Any]]:
+def list_entregas(include_finalized: bool = True) -> list[dict[str, Any]]:
     store = load_store()
-    return sorted(store.get("entregas", []), key=lambda item: item.get("fecha", ""), reverse=True)
+    entregas = store.get("entregas", [])
+    if not include_finalized:
+        entregas = [entrega for entrega in entregas if not entrega.get("finalizada")]
+    return sorted(entregas, key=lambda item: item.get("fecha", ""), reverse=True)
+
+
+def editable_entrega(store: dict[str, Any], entrega_id: str) -> dict[str, Any]:
+    entrega = next((row for row in store.get("entregas", []) if row.get("id") == entrega_id), None)
+    if not entrega:
+        raise ValueError("Entrega no encontrada.")
+    if entrega.get("finalizada"):
+        raise ValueError("La entrega está finalizada. Reábrela para modificar sus datos.")
+    return entrega
 
 
 def add_entrega_item(form: dict[str, str]) -> dict[str, Any]:
     store = load_store()
     entrega_id = form.get("entrega_id") or store.get("active_entrega_id")
-    entrega = next((e for e in store.get("entregas", []) if e.get("id") == entrega_id), None)
-    if not entrega:
+    if not entrega_id:
         raise ValueError("Primero crea una entrega.")
+    entrega = editable_entrega(store, entrega_id)
     if len(entrega.get("items", [])) >= 8:
         raise ValueError("La plantilla de preliminares permite máximo 8 sociedades por entrega.")
 
@@ -490,9 +567,7 @@ def add_entrega_item(form: dict[str, str]) -> dict[str, Any]:
 
 def update_entrega_item(form: dict[str, str]) -> dict[str, Any]:
     store = load_store()
-    entrega = next((e for e in store.get("entregas", []) if e.get("id") == form.get("entrega_id")), None)
-    if not entrega:
-        raise ValueError("Entrega no encontrada.")
+    entrega = editable_entrega(store, form.get("entrega_id", ""))
     idx = next((idx for idx, item in enumerate(entrega.get("items", [])) if item.get("id") == form.get("item_id")), None)
     if idx is None:
         raise ValueError("Sociedad no encontrada en la entrega.")
@@ -525,9 +600,7 @@ def update_entrega_item(form: dict[str, str]) -> dict[str, Any]:
 
 def delete_entrega_item(entrega_id: str, item_id: str) -> None:
     store = load_store()
-    entrega = next((e for e in store.get("entregas", []) if e.get("id") == entrega_id), None)
-    if not entrega:
-        raise ValueError("Entrega no encontrada.")
+    entrega = editable_entrega(store, entrega_id)
     original_count = len(entrega.get("items", []))
     entrega["items"] = [item for item in entrega.get("items", []) if item.get("id") != item_id]
     if len(entrega["items"]) == original_count:
@@ -537,9 +610,7 @@ def delete_entrega_item(entrega_id: str, item_id: str) -> None:
 
 def update_ley(form: dict[str, str]) -> dict[str, Any]:
     store = load_store()
-    entrega = next((e for e in store.get("entregas", []) if e.get("id") == form.get("entrega_id")), None)
-    if not entrega:
-        raise ValueError("Entrega no encontrada.")
+    entrega = editable_entrega(store, form.get("entrega_id", ""))
     item = next((i for i in entrega.get("items", []) if i.get("id") == form.get("item_id")), None)
     if not item:
         raise ValueError("Sociedad no encontrada en la entrega.")
@@ -552,9 +623,7 @@ def update_ley(form: dict[str, str]) -> dict[str, Any]:
 
 def clear_ley(form: dict[str, str]) -> dict[str, Any]:
     store = load_store()
-    entrega = next((e for e in store.get("entregas", []) if e.get("id") == form.get("entrega_id")), None)
-    if not entrega:
-        raise ValueError("Entrega no encontrada.")
+    entrega = editable_entrega(store, form.get("entrega_id", ""))
     item = next((i for i in entrega.get("items", []) if i.get("id") == form.get("item_id")), None)
     if not item:
         raise ValueError("Sociedad no encontrada en la entrega.")
@@ -567,9 +636,7 @@ def clear_ley(form: dict[str, str]) -> dict[str, Any]:
 
 def update_parametros(form: dict[str, str]) -> dict[str, Any]:
     store = load_store()
-    entrega = next((e for e in store.get("entregas", []) if e.get("id") == form.get("entrega_id")), None)
-    if not entrega:
-        raise ValueError("Entrega no encontrada.")
+    entrega = editable_entrega(store, form.get("entrega_id", ""))
     royalty_month = form.get("mes_regalias", "").strip().upper()
     if royalty_month not in core.MESES_ORDEN:
         raise ValueError("El mes de regalías no es válido.")
@@ -597,9 +664,7 @@ def update_parametros(form: dict[str, str]) -> dict[str, Any]:
 
 def clear_parametros(entrega_id: str) -> dict[str, Any]:
     store = load_store()
-    entrega = next((e for e in store.get("entregas", []) if e.get("id") == entrega_id), None)
-    if not entrega:
-        raise ValueError("Entrega no encontrada.")
+    entrega = editable_entrega(store, entrega_id)
     entrega["parametros"] = {
         "mes_regalias": entrega.get("month", core.mes_actual_es()),
         "dolar": "",

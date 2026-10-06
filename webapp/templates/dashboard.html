@@ -139,18 +139,44 @@
 
 <section class="dashboard-layout">
   <div class="panel revenue-panel">
-    <div class="panel-title">
+    <div class="panel-title chart-panel-title">
       <div>
-        <h2>Subtotal mensual</h2>
-        <p>Valor total de metales de los boletines filtrados</p>
+        <h2 data-chart-heading>Facturación mensual</h2>
+        <p data-chart-description>Valor total de metales de los boletines filtrados</p>
       </div>
-      <span>{{ dashboard.year }}</span>
+      <div class="chart-panel-actions">
+        <div class="chart-mode-switch" role="group" aria-label="Variable de la gráfica">
+          <button class="active" type="button" data-chart-mode="money" aria-pressed="true" data-tooltip="Mostrar dinero facturado">
+            {{ icons.icon("dollar") }}<span>Dinero</span>
+          </button>
+          <button type="button" data-chart-mode="weight" aria-pressed="false" data-tooltip="Mostrar gramos iniciales y finales">
+            {{ icons.icon("weight") }}<span>Gramos</span>
+          </button>
+        </div>
+        <span class="chart-year">{{ dashboard.year }}</span>
+      </div>
     </div>
-    <div class="revenue-chart" style="--month-count: {{ dashboard.months|length }}" role="img" aria-label="Subtotal mensual de {{ dashboard.year }}">
+    <div class="revenue-chart" data-chart-view="money" style="--month-count: {{ dashboard.months|length }}" role="img" aria-label="Facturación mensual de {{ dashboard.year }}">
       {% for month in dashboard.months %}
       <div class="chart-column" title="{{ month.name }}: {{ month.subtotal_display }}">
         <span class="chart-value">{{ month.subtotal_display if month.subtotal else "" }}</span>
-        <div class="chart-track"><i style="height: {{ month.bar_percent }}%"></i></div>
+        <div class="chart-track"><i style="height: {{ month.subtotal_bar_percent }}%"></i></div>
+        <strong>{{ month.name[:3] }}</strong>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="chart-legend" data-chart-view="weight" hidden>
+      <span><i class="initial"></i>Gramos iniciales</span>
+      <span><i class="final"></i>Gramos finales</span>
+    </div>
+    <div class="revenue-chart weight-chart" data-chart-view="weight" style="--month-count: {{ dashboard.months|length }}" role="img" aria-label="Gramos facturados por mes de {{ dashboard.year }}" hidden>
+      {% for month in dashboard.months %}
+      <div class="chart-column" title="{{ month.name }}: {{ month.peso_inicial_display }} g iniciales / {{ month.peso_final_display }} g finales">
+        <span class="chart-value">{{ month.peso_final_display ~ " g" if month.peso_final else "" }}</span>
+        <div class="weight-chart-pair">
+          <span><i class="initial" style="height: {{ month.peso_inicial_bar_percent }}%"></i></span>
+          <span><i class="final" style="height: {{ month.peso_final_bar_percent }}%"></i></span>
+        </div>
         <strong>{{ month.name[:3] }}</strong>
       </div>
       {% endfor %}

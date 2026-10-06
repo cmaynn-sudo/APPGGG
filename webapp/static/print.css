@@ -320,6 +320,198 @@
   margin-top: 0.1in;
 }
 
+.annual-certificate {
+  background: #eef2f0;
+  color: #17231f;
+  font-family: Arial, Helvetica, sans-serif;
+  padding: 24px;
+}
+
+.annual-certificate-sheet {
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(23, 35, 31, 0.12);
+  margin: 0 auto;
+  max-width: 186mm;
+  min-height: 260mm;
+  padding: 15mm 13mm;
+}
+
+.annual-certificate-header {
+  align-items: center;
+  border-bottom: 2px solid #096b5a;
+  display: flex;
+  justify-content: space-between;
+  padding-bottom: 6mm;
+}
+
+.annual-certificate-header p,
+.annual-certificate-header h1,
+.annual-certificate-header span {
+  display: block;
+  margin: 0;
+}
+
+.annual-certificate-header p {
+  color: #096b5a;
+  font-size: 8pt;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.annual-certificate-header h1 {
+  font-size: 19pt;
+  line-height: 1.15;
+  margin-top: 2mm;
+  text-transform: uppercase;
+}
+
+.annual-certificate-header span {
+  color: #66736e;
+  font-size: 10pt;
+  margin-top: 1.5mm;
+}
+
+.annual-certificate-header img {
+  height: 24mm;
+  object-fit: contain;
+  width: 34mm;
+}
+
+.annual-certificate-date {
+  font-size: 9pt;
+  margin: 7mm 0 4mm;
+  text-align: right;
+}
+
+.annual-certificate-intro {
+  font-size: 9pt;
+  line-height: 1.55;
+  margin: 0;
+  text-align: justify;
+}
+
+.annual-certificate-provider {
+  background: #f3f6f4;
+  border-left: 3px solid #096b5a;
+  display: grid;
+  gap: 3mm 8mm;
+  grid-template-columns: 1fr 1fr;
+  margin: 6mm 0;
+  padding: 4mm 5mm;
+}
+
+.annual-certificate-provider div {
+  display: grid;
+  gap: 1mm;
+  grid-template-columns: 21mm 1fr;
+}
+
+.annual-certificate-provider dt,
+.annual-certificate-provider dd {
+  font-size: 8.5pt;
+  margin: 0;
+}
+
+.annual-certificate-provider dt {
+  color: #66736e;
+  font-weight: 700;
+}
+
+.annual-certificate-provider dd {
+  font-weight: 700;
+}
+
+.annual-certificate-table {
+  border-collapse: collapse;
+  font-size: 7.5pt;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.annual-certificate-table thead {
+  display: table-header-group;
+}
+
+.annual-certificate-table tr {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.annual-certificate-table th,
+.annual-certificate-table td {
+  border: 0.4pt solid #9aa7a1;
+  padding: 2.2mm 1.5mm;
+  vertical-align: middle;
+}
+
+.annual-certificate-table thead th {
+  background: #096b5a;
+  color: #fff;
+  font-size: 7pt;
+  text-align: center;
+}
+
+.annual-certificate-table tbody tr:nth-child(even) {
+  background: #f7f9f8;
+}
+
+.annual-certificate-table tfoot th {
+  background: #e9f4f0;
+  color: #17231f;
+  font-weight: 700;
+}
+
+.annual-certificate-table .number-cell {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.annual-certificate-notes {
+  border-top: 1px solid #dce4e0;
+  break-inside: avoid;
+  margin-top: 7mm;
+  padding-top: 4mm;
+}
+
+.annual-certificate-notes strong {
+  color: #096b5a;
+  font-size: 8pt;
+  text-transform: uppercase;
+}
+
+.annual-certificate-notes p {
+  font-size: 8pt;
+  line-height: 1.4;
+  margin: 2mm 0 0;
+}
+
+.annual-certificate-signature {
+  align-items: end;
+  break-inside: avoid;
+  display: flex;
+  gap: 5mm;
+  margin-top: 11mm;
+}
+
+.annual-certificate-signature img {
+  height: 24mm;
+  object-fit: contain;
+  width: 50mm;
+}
+
+.annual-certificate-signature div {
+  border-top: 1px solid #17231f;
+  display: grid;
+  gap: 1mm;
+  min-width: 70mm;
+  padding-top: 2mm;
+}
+
+.annual-certificate-signature strong,
+.annual-certificate-signature span {
+  font-size: 8pt;
+}
+
 @media print {
   body {
     background: white;
@@ -345,5 +537,17 @@
 
   .doc-sheet {
     box-shadow: none;
+  }
+
+  .annual-certificate {
+    background: white;
+    padding: 0;
+  }
+
+  .annual-certificate-sheet {
+    box-shadow: none;
+    max-width: none;
+    min-height: 0;
+    padding: 0;
   }
 }

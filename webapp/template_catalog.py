@@ -207,7 +207,22 @@ TEMPLATES: list[TemplateSpec] = [
 ]
 
 
-TEMPLATE_BY_SLUG = {template.slug: template for template in TEMPLATES}
+CERTIFICADO_ANUAL = TemplateSpec(
+    slug="certificado-anual",
+    title="Certificado anual de regalías",
+    workbook=PROJECT_DIR / "PAGO DE REGALIAS.xlsx",
+    preferred_sheet="MES",
+    current_script="PAGO DE REGALIAS.py",
+    purpose="Certificado anual consolidado por sociedad.",
+    output_name="CERTIFICADO ANUAL DE REGALIAS {sociedad} - {year}.pdf",
+    fields={},
+    body_template="manual/certificado-anual.html",
+    page_size="A4",
+    page_margin="12mm",
+)
+
+
+TEMPLATE_BY_SLUG = {template.slug: template for template in [*TEMPLATES, CERTIFICADO_ANUAL]}
 
 
 SAMPLE_CONTEXT = {

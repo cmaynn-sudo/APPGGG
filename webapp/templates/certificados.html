@@ -8,16 +8,28 @@
   <div>
     <p class="eyebrow">Módulo</p>
     <h1>Certificados de regalías</h1>
-    <p>Agrupados por sociedad y mes.</p>
+    <p>{{ "Consolidado anual por sociedad." if period == "annual" else "Reportes mensuales agrupados por sociedad." }}</p>
   </div>
 </header>
 
 <section class="panel">
   <div class="panel-title">
-    <h2>{{ year }} / {{ month }}</h2>
+    <div>
+      <h2>{{ year }}{% if period == "monthly" %} / {{ month }}{% endif %}</h2>
+      <p>{{ "Certificados anuales" if period == "annual" else "Certificados mensuales" }}</p>
+    </div>
     <span>{{ groups|length }} sociedad(es)</span>
   </div>
-  <form class="form-grid" method="get" action="/certificados">
+  <div class="certificate-mode-switch" role="group" aria-label="Tipo de certificado">
+    <a class="{{ 'active' if period == 'monthly' else '' }}" href="/certificados?period=monthly&year={{ year }}&month={{ month }}">
+      {{ icons.icon("calendar") }}<span>Mensuales</span>
+    </a>
+    <a class="{{ 'active' if period == 'annual' else '' }}" href="/certificados?period=annual&year={{ year }}">
+      {{ icons.icon("archive") }}<span>Anuales</span>
+    </a>
+  </div>
+  <form class="form-grid certificate-filter" method="get" action="/certificados">
+    <input type="hidden" name="period" value="{{ period }}">
     <label>Año
       <select name="year">
         {% for item in years %}
@@ -25,6 +37,7 @@
         {% endfor %}
       </select>
     </label>
+    {% if period == "monthly" %}
     <label>Mes
       <select name="month">
         {% for item in months %}
@@ -32,7 +45,10 @@
         {% endfor %}
       </select>
     </label>
-    <button class="button" type="submit" data-tooltip="Filtrar certificados por período">Revisar</button>
+    {% endif %}
+    <button class="button" type="submit" data-tooltip="Filtrar certificados por período">
+      {{ icons.icon("search") }}<span>Revisar</span>
+    </button>
   </form>
   <table class="data-table section-gap">
     <thead>
@@ -50,12 +66,17 @@
         <td>{{ group.nit }}</td>
         <td>{{ group["boletines"]|length }}</td>
         <td class="row-actions">
+          {% if period == "annual" %}
+          <a class="icon-action" href="/print/certificado-anual/{{ year }}/{{ group.key }}" target="_blank" data-tooltip="Ver certificado anual en pantalla" aria-label="Ver certificado anual">{{ icons.icon("eye") }}</a>
+          <a class="icon-action primary" href="/print/certificado-anual/{{ year }}/{{ group.key }}?download=1" data-tooltip="Descargar certificado anual en PDF" aria-label="Descargar certificado anual en PDF">{{ icons.icon("download") }}</a>
+          {% else %}
           <a class="icon-action" href="/print/certificado/{{ year }}/{{ month }}/{{ group.key }}" target="_blank" data-tooltip="Ver certificado en pantalla" aria-label="Ver certificado">{{ icons.icon("eye") }}</a>
           <a class="icon-action primary" href="/print/certificado/{{ year }}/{{ month }}/{{ group.key }}?download=1" data-tooltip="Descargar certificado en PDF" aria-label="Descargar certificado en PDF">{{ icons.icon("download") }}</a>
+          {% endif %}
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="4">No hay boletines para este período.</td></tr>
+      <tr><td colspan="4">No hay boletines para este {{ "año" if period == "annual" else "período" }}.</td></tr>
       {% endfor %}
     </tbody>
   </table>

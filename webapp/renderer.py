@@ -134,6 +134,7 @@ def render_print_pdf(slug: str, context: dict | None = None) -> bytes:
         "reporte-analisis": render_reporte_analisis_pdf,
         "boletin": render_boletin_pdf,
         "certificado-regalias": render_certificado_pdf,
+        "certificado-anual": render_certificado_pdf,
     }
     if slug in reportlab_renderers:
         return reportlab_renderers[slug](data, spec.title)

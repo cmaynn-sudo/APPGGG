@@ -82,6 +82,17 @@ class DashboardSummaryTests(unittest.TestCase):
         self.assertEqual(result["totals"]["peso_inicial"], 300.0)
         self.assertEqual(result["totals"]["peso_final"], 285.0)
 
+    def test_money_and_weight_charts_use_independent_scales(self) -> None:
+        result = analytics.dashboard_summary({"year": "2026"})
+        january, february = result["months"][:2]
+
+        self.assertEqual(january["subtotal_bar_percent"], 50.0)
+        self.assertEqual(february["subtotal_bar_percent"], 100.0)
+        self.assertEqual(january["peso_inicial_bar_percent"], 50.0)
+        self.assertEqual(january["peso_final_bar_percent"], 47.5)
+        self.assertEqual(february["peso_inicial_bar_percent"], 100.0)
+        self.assertEqual(february["peso_final_bar_percent"], 95.0)
+
     def test_month_delivery_and_provider_filters_combine(self) -> None:
         result = analytics.dashboard_summary(
             {"year": "2026", "month": "1", "entrega": "e1", "proveedor": "ALFA"}

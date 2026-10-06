@@ -12,6 +12,15 @@ import app  # noqa: E402
 
 
 class TemplateRenderingTests(unittest.TestCase):
+    def base_context(self, request_path: str) -> dict:
+        return {
+            "public": False,
+            "user": {"username": "admin", "role": "SUPERUSER"},
+            "request_path": request_path,
+            "asset_version": "test",
+            "backup_status": {"required": False, "enabled": True, "write_ready": True},
+        }
+
     def test_data_quality_renders_issue_values_without_dict_method_collision(self) -> None:
         fields = {
             "documento": "CORI-4",
@@ -84,6 +93,66 @@ class TemplateRenderingTests(unittest.TestCase):
         self.assertIn('data-layout-element-select', html)
         self.assertIn('data-layout-control="scale"', html)
         self.assertIn('data-layout-id="cell-I15"', html)
+
+    def test_annual_certificate_renders_all_rows_without_monthly_limit(self) -> None:
+        boletines = [
+            {
+                "documento": f"BAR-{index}",
+                "fecha": f"2026-0{min(index, 9)}-12",
+                "mes": "ENERO",
+                "finos_oro": "10,00",
+                "finos_plata": "2,00",
+                "regalia_oro": "$ 100",
+                "regalia_plata": "$ 20",
+            }
+            for index in range(1, 7)
+        ]
+        html = app.env.get_template("manual/certificado-anual.html").render(
+            sociedad="SOCIEDAD ANUAL",
+            nit="900.000.000-1",
+            periodo_label="Año 2026",
+            fecha_larga="6 de octubre de 2026",
+            boletines=boletines,
+            totales={
+                "finos_oro": "60,00",
+                "finos_plata": "12,00",
+                "regalia_oro": "$ 600",
+                "regalia_plata": "$ 120",
+            },
+        )
+
+        self.assertIn("Certificado anual de regalías", html)
+        self.assertIn("BAR-6", html)
+        self.assertIn("Total anual", html)
+
+    def test_certificates_keep_monthly_mode_and_offer_annual_mode(self) -> None:
+        html = app.env.get_template("certificados.html").render(
+            period="annual",
+            year="2026",
+            month="",
+            years=["2026"],
+            months=["ENERO"],
+            groups=[
+                {
+                    "key": "sociedad-anual",
+                    "sociedad": "SOCIEDAD ANUAL",
+                    "nit": "900.000.000-1",
+                    "boletines": [{"documento": "BAR-1"}],
+                }
+            ],
+            **self.base_context("/certificados?period=annual&year=2026"),
+        )
+
+        self.assertIn("Mensuales", html)
+        self.assertIn("Anuales", html)
+        self.assertIn("/print/certificado-anual/2026/sociedad-anual", html)
+
+    def test_application_signature_is_present_in_authenticated_layout(self) -> None:
+        html = app.env.get_template("base.html").render(
+            **self.base_context("/"),
+        )
+
+        self.assertIn("ANGEL SISTEMS", html)
 
 
 if __name__ == "__main__":

@@ -21,6 +21,39 @@
     });
   }
 
+  const chartModeButtons = Array.from(document.querySelectorAll("[data-chart-mode]"));
+  const chartViews = Array.from(document.querySelectorAll("[data-chart-view]"));
+  const chartHeading = document.querySelector("[data-chart-heading]");
+  const chartDescription = document.querySelector("[data-chart-description]");
+
+  function applyChartMode(mode) {
+    const selectedMode = mode === "weight" ? "weight" : "money";
+    chartModeButtons.forEach((control) => {
+      const active = control.dataset.chartMode === selectedMode;
+      control.classList.toggle("active", active);
+      control.setAttribute("aria-pressed", String(active));
+    });
+    chartViews.forEach((view) => {
+      view.hidden = view.dataset.chartView !== selectedMode;
+    });
+    if (chartHeading) {
+      chartHeading.textContent = selectedMode === "weight" ? "Gramos facturados por mes" : "Facturación mensual";
+    }
+    if (chartDescription) {
+      chartDescription.textContent = selectedMode === "weight"
+        ? "Pesos iniciales y finales de los boletines filtrados"
+        : "Valor total de metales de los boletines filtrados";
+    }
+    localStorage.setItem("dashboard-chart-mode", selectedMode);
+  }
+
+  if (chartModeButtons.length && chartViews.length) {
+    chartModeButtons.forEach((control) => {
+      control.addEventListener("click", () => applyChartMode(control.dataset.chartMode));
+    });
+    applyChartMode(localStorage.getItem("dashboard-chart-mode") || "money");
+  }
+
   document.querySelectorAll("[data-history-upload-form], [data-folder-upload-form]").forEach((form) => {
     form.addEventListener("submit", async (event) => {
       const input = form.querySelector("[data-upload-input], [data-folder-input]");
