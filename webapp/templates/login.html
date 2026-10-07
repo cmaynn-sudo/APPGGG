@@ -4,24 +4,51 @@
 
 {% block content %}
 <section class="login-shell" aria-labelledby="login-title">
-  <div class="login-panel">
-    <div class="login-brand-mark">
-      <img src="/static/generated/logo.png" alt="Green Global Group">
+  <div class="login-story">
+    <div class="login-story-brand">
+      <span class="login-brand-mark"><img src="/static/generated/logo.png" alt="Green Global Group"></span>
+      <span><strong>Green Global Group</strong><small>Operación de recepción</small></span>
     </div>
-    <p class="eyebrow">Acceso seguro</p>
-    <h1 id="login-title">Recepción Green Global</h1>
-    <p class="login-welcome">Ingresa con tu cuenta para continuar.</p>
-    <form class="form-stack" method="post" action="/login">
-      <input type="hidden" name="next" value="{{ next }}">
-      <label><span>Usuario</span><input name="username" autocomplete="username" required autofocus></label>
-      <label><span>Contraseña</span><input name="password" type="password" autocomplete="current-password" required></label>
-      {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
-      <button class="button login-submit" type="submit">
-        <span>Ingresar</span>{{ icons.icon("arrow-right") }}
-      </button>
-    </form>
-    <p class="login-company">Green Global Group</p>
-    <p class="login-signature">Aplicativo desarrollado por <strong>ANGEL SISTEMS</strong></p>
+    <p class="login-kicker">Control documental y trazabilidad</p>
+    <h1 id="login-title">Recepción de metales</h1>
+    <p class="login-story-copy">Gestiona entregas, análisis, liquidaciones, regalías y certificados desde una sola operación protegida.</p>
+
+    <div class="login-route" aria-hidden="true">
+      <span class="login-route-line"><i></i></span>
+      <span class="login-route-stop active"><i></i><small>Recepción</small></span>
+      <span class="login-route-stop"><i></i><small>Análisis</small></span>
+      <span class="login-route-stop"><i></i><small>Liquidación</small></span>
+      <span class="login-route-stop"><i></i><small>Archivo</small></span>
+    </div>
+
+    <div class="login-capabilities" aria-label="Capacidades del sistema">
+      <div><strong>Documentos</strong><span>Planillas y PDF coordinados</span></div>
+      <div><strong>Trazabilidad</strong><span>Entregas y boletines históricos</span></div>
+      <div><strong>Respaldo</strong><span>Persistencia externa verificada</span></div>
+    </div>
+  </div>
+
+  <div class="login-access-column">
+    <div class="login-panel">
+      <div class="login-security-mark">{{ icons.icon("badge-check") }}</div>
+      <p class="eyebrow">Sesión operativa</p>
+      <h2>Ingresa al sistema</h2>
+      <p class="login-welcome">Usa tus credenciales para abrir el espacio de trabajo.</p>
+      <form class="form-stack" method="post" action="/login" aria-label="Formulario de acceso">
+        <input type="hidden" name="next" value="{{ next }}">
+        <label><span>Usuario</span><input name="username" autocomplete="username" required autofocus placeholder="Ingresa tu usuario"></label>
+        <label><span>Contraseña</span><input name="password" type="password" autocomplete="current-password" required placeholder="Ingresa tu contraseña"></label>
+        {% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
+        <button class="button login-submit" type="submit">
+          <span>Ingresar al panel</span>{{ icons.icon("arrow-right") }}
+        </button>
+      </form>
+      <div class="login-panel-footer">
+        <span>{{ icons.icon("database") }} Datos protegidos</span>
+        <span>Acceso restringido</span>
+      </div>
+    </div>
+    <p class="login-signature">Desarrollado por <strong>ANGEL SISTEMS</strong></p>
   </div>
 </section>
 {% endblock %}

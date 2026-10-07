@@ -19,11 +19,13 @@ from template_catalog import TEMPLATE_BY_SLUG, WEBAPP_DIR
 DATA_DIR = Path(os.environ.get("DATA_DIR", str(WEBAPP_DIR / "data")))
 STORE_PATH = DATA_DIR / "recepcion_store.json"
 UPLOADS_DIR = DATA_DIR / "uploads"
+TEMPLATE_ASSET_DIR = UPLOADS_DIR / "template-assets"
+MAX_TEMPLATE_ASSET_BYTES = 5 * 1024 * 1024
 DEFAULT_BOLETIN_SETTINGS = {
     "precio_negociacion_porcentaje": "97,5",
     "retencion_porcentaje": "2,5",
 }
-DASHBOARD_OVERRIDE_TEXT_FIELDS = ("documento", "sociedad", "date")
+DASHBOARD_OVERRIDE_TEXT_FIELDS = ("documento", "sociedad", "nit", "date")
 DASHBOARD_OVERRIDE_NUMBER_FIELDS = (
     "subtotal",
     "valor_a_pagar",
@@ -32,8 +34,10 @@ DASHBOARD_OVERRIDE_NUMBER_FIELDS = (
     "valor_pagado",
     "peso_inicial",
     "peso_final",
+    "finos_oro",
+    "finos_plata",
 )
-LAYOUT_ELEMENT_ID_RE = re.compile(r"^(?:cell-[A-Z]{1,3}\d+|image-\d+|block-[a-z0-9-]+)$")
+LAYOUT_ELEMENT_ID_RE = re.compile(r"^(?:cell-[A-Z]{1,3}\d+|image-[a-z0-9-]+|block-[a-z0-9-]+)$")
 LAYOUT_ALIGNMENTS = {"", "left", "center", "right"}
 
 
@@ -47,6 +51,7 @@ def _empty_store() -> dict[str, Any]:
         "uploaded_files": [],
         "dashboard_overrides": {},
         "template_layouts": {},
+        "template_assets": {},
         "active_entrega_id": "",
     }
 
@@ -94,6 +99,9 @@ def normalize_store(store: dict[str, Any], sync_backup: bool = True) -> dict[str
         changed = True
     if not isinstance(store.get("template_layouts"), dict):
         store["template_layouts"] = {}
+        changed = True
+    if not isinstance(store.get("template_assets"), dict):
+        store["template_assets"] = {}
         changed = True
     if changed:
         save_store(store, sync_backup=sync_backup)
@@ -266,6 +274,8 @@ def update_template_layout(slug: str, raw_layout: str) -> dict[str, Any]:
             ("y", 0.0, -500.0, 500.0),
             ("scale", 1.0, 0.4, 2.5),
             ("font_size", 0.0, 0.0, 72.0),
+            ("width", 0.0, 0.0, 1200.0),
+            ("height", 0.0, 0.0, 1200.0),
         ):
             try:
                 value = float(raw_settings.get(name, fallback))
@@ -278,12 +288,20 @@ def update_template_layout(slug: str, raw_layout: str) -> dict[str, Any]:
                 value = 0.0
             if name == "scale" and abs(value - 1.0) < 0.001:
                 value = 1.0
-            if name == "font_size" and value < 1:
+            if name in {"font_size", "width", "height"} and value < 1:
                 value = 0.0
             settings[name] = round(value, 2)
         settings["nowrap"] = bool(raw_settings.get("nowrap", False))
+        settings["hidden"] = bool(raw_settings.get("hidden", False))
         alignment = str(raw_settings.get("text_align", "")).strip().lower()
         settings["text_align"] = alignment if alignment in LAYOUT_ALIGNMENTS else ""
+        text_override = raw_settings.get("text_override")
+        if text_override is not None:
+            if not isinstance(text_override, str):
+                raise ValueError("El texto personalizado de la plantilla no es válido.")
+            if len(text_override) > 4000:
+                raise ValueError("El texto personalizado no puede superar 4.000 caracteres.")
+            settings["text_override"] = text_override
         elements[element_id] = settings
 
     layout = {
@@ -301,9 +319,134 @@ def reset_template_layout(slug: str) -> None:
         raise ValueError("La plantilla seleccionada no existe.")
     store = load_store()
     layouts = store.setdefault("template_layouts", {})
+    assets = store.setdefault("template_assets", {})
+    changed = False
     if slug in layouts:
         del layouts[slug]
+        changed = True
+    if slug in assets:
+        del assets[slug]
+        changed = True
+    asset_dir = TEMPLATE_ASSET_DIR / slug
+    if asset_dir.exists():
+        shutil.rmtree(asset_dir)
+        changed = True
+    if changed:
         save_store(store)
+
+
+def get_template_assets(slug: str, store: dict[str, Any] | None = None) -> dict[str, dict[str, str]]:
+    if slug not in TEMPLATE_BY_SLUG:
+        return {}
+    data = store or load_store()
+    assets = data.get("template_assets", {}).get(slug, {})
+    if not isinstance(assets, dict):
+        return {}
+    return {
+        str(element_id): dict(metadata)
+        for element_id, metadata in assets.items()
+        if isinstance(element_id, str)
+        and LAYOUT_ELEMENT_ID_RE.fullmatch(element_id)
+        and isinstance(metadata, dict)
+    }
+
+
+def template_asset_path(
+    slug: str,
+    element_id: str,
+    store: dict[str, Any] | None = None,
+) -> tuple[dict[str, str], Path] | tuple[None, None]:
+    metadata = get_template_assets(slug, store).get(element_id)
+    if not metadata:
+        return None, None
+    relative = Path(str(metadata.get("stored_path", "")))
+    path = (UPLOADS_DIR / relative).resolve()
+    if not is_path_inside(path, UPLOADS_DIR) or not path.is_file():
+        return None, None
+    return metadata, path
+
+
+def save_template_asset(
+    slug: str,
+    element_id: str,
+    filename: str,
+    content: bytes,
+) -> dict[str, str]:
+    if slug not in TEMPLATE_BY_SLUG:
+        raise ValueError("La plantilla seleccionada no existe.")
+    if not LAYOUT_ELEMENT_ID_RE.fullmatch(str(element_id or "")):
+        raise ValueError("Selecciona una imagen válida dentro de la plantilla.")
+    if not content:
+        raise ValueError("Selecciona una imagen para reemplazar la firma o el logotipo.")
+    if len(content) > MAX_TEMPLATE_ASSET_BYTES:
+        raise ValueError("La imagen supera el límite de 5 MB.")
+
+    detected = detect_template_image(content)
+    if not detected:
+        raise ValueError("La imagen debe estar en formato PNG, JPG o WEBP.")
+    extension, content_type = detected
+    safe_name = Path(str(filename or f"imagen.{extension}")).name
+    stored_relative = Path("template-assets") / slug / f"{element_id}.{extension}"
+    destination = UPLOADS_DIR / stored_relative
+    destination.parent.mkdir(parents=True, exist_ok=True)
+
+    store = load_store()
+    previous_metadata = get_template_assets(slug, store).get(element_id)
+    previous_path = None
+    if previous_metadata:
+        previous_relative = Path(str(previous_metadata.get("stored_path", "")))
+        candidate = (UPLOADS_DIR / previous_relative).resolve()
+        if is_path_inside(candidate, UPLOADS_DIR):
+            previous_path = candidate
+
+    temporary = destination.with_suffix(destination.suffix + ".tmp")
+    temporary.write_bytes(content)
+    temporary.replace(destination)
+    if previous_path and previous_path != destination.resolve() and previous_path.is_file():
+        previous_path.unlink()
+
+    metadata = {
+        "filename": safe_name,
+        "stored_path": stored_relative.as_posix(),
+        "content_type": content_type,
+        "updated_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    store.setdefault("template_assets", {}).setdefault(slug, {})[element_id] = metadata
+    save_store(store)
+    return metadata
+
+
+def delete_template_asset(slug: str, element_id: str) -> None:
+    if slug not in TEMPLATE_BY_SLUG:
+        raise ValueError("La plantilla seleccionada no existe.")
+    store = load_store()
+    assets = store.setdefault("template_assets", {}).setdefault(slug, {})
+    metadata = assets.pop(element_id, None)
+    if not metadata:
+        raise ValueError("Este elemento no tiene una imagen personalizada.")
+    relative = Path(str(metadata.get("stored_path", "")))
+    path = (UPLOADS_DIR / relative).resolve()
+    if is_path_inside(path, UPLOADS_DIR) and path.is_file():
+        path.unlink()
+    save_store(store)
+
+
+def detect_template_image(content: bytes) -> tuple[str, str] | None:
+    if content.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png", "image/png"
+    if content.startswith(b"\xff\xd8\xff"):
+        return "jpg", "image/jpeg"
+    if len(content) >= 12 and content[:4] == b"RIFF" and content[8:12] == b"WEBP":
+        return "webp", "image/webp"
+    return None
+
+
+def is_path_inside(path: Path, parent: Path) -> bool:
+    try:
+        path.resolve().relative_to(parent.resolve())
+    except ValueError:
+        return False
+    return True
 
 
 def normalize_percent_field(raw: str, fallback: str) -> str:
@@ -1020,37 +1163,105 @@ def boletines_for_entrega(entrega: dict[str, Any]) -> list[dict[str, Any]]:
 
 def certificado_groups(year: str | None = None, month: str | None = None) -> list[dict[str, Any]]:
     store = load_store()
-    groups: dict[str, dict[str, Any]] = {}
+    requested_year = str(year or "").strip()
+    requested_month = str(month or "").strip().upper()
+    records: list[dict[str, Any]] = []
     for entrega in store.get("entregas", []):
-        if year and entrega.get("year") != year:
+        delivery_year = str(entrega.get("year", "")).strip()
+        delivery_month = str(entrega.get("month", "")).strip().upper()
+        if requested_year and delivery_year != requested_year:
             continue
-        if month and entrega.get("month") != month:
+        if requested_month and delivery_month != requested_month:
             continue
         for boletin in boletines_for_entrega(entrega):
-            key = boletin.get("sociedad") or boletin.get("proveedor")
-            if not key:
-                continue
-            group = groups.setdefault(
-                key,
+            records.append(
                 {
-                    "key": slugify(key),
-                    "sociedad": key,
+                    "source": "web",
+                    "sociedad": boletin.get("sociedad") or boletin.get("proveedor", ""),
                     "nit": boletin.get("nit", ""),
-                    "boletines": [],
-                },
-            )
-            group["boletines"].append(
-                {
                     "documento": boletin.get("barra", boletin.get("codigo", "")),
                     "fecha": entrega.get("fecha", ""),
-                    "mes": entrega.get("month", ""),
+                    "year": delivery_year,
+                    "mes": delivery_month,
                     "finos_oro": boletin.get("finos_oro", ""),
                     "finos_plata": boletin.get("finos_plata", ""),
                     "regalia_oro": boletin.get("regalia_oro", ""),
                     "regalia_plata": boletin.get("regalia_plata", ""),
                 }
             )
+
+    # Las ventas históricas viven como PDF y no forman parte de `entregas`.
+    # Se leen aquí para que los certificados consoliden ambos orígenes.
+    import analytics
+    import document_library
+
+    for record in analytics.historical_certificate_records(document_library.all_folders(), store):
+        if requested_year and str(record.get("year", "")) != requested_year:
+            continue
+        if requested_month and str(record.get("mes", "")).upper() != requested_month:
+            continue
+        records.append(record)
+
+    groups: dict[str, dict[str, Any]] = {}
+    known_documents: set[tuple[str, str, str]] = set()
+    for record in records:
+        society_name = str(record.get("sociedad", "")).strip()
+        if not society_name:
+            continue
+        nit = str(record.get("nit", "")).strip()
+        identity = re.sub(r"\D", "", nit) or slugify(society_name)
+        document = str(record.get("documento", "")).strip().upper()
+        record_year = str(record.get("year", "")).strip() or str(record.get("fecha", ""))[:4]
+        document_identity = (record_year, document, identity)
+        if document and document_identity in known_documents:
+            continue
+        if document:
+            known_documents.add(document_identity)
+
+        group = groups.setdefault(
+            identity,
+            {
+                "key": slugify(society_name),
+                "sociedad": society_name,
+                "nit": nit,
+                "boletines": [],
+            },
+        )
+        if not group.get("nit") and nit:
+            group["nit"] = nit
+        group["boletines"].append(
+            {
+                "documento": record.get("documento", ""),
+                "fecha": record.get("fecha", ""),
+                "mes": record.get("mes", ""),
+                "finos_oro": record.get("finos_oro", ""),
+                "finos_plata": record.get("finos_plata", ""),
+                "regalia_oro": record.get("regalia_oro", ""),
+                "regalia_plata": record.get("regalia_plata", ""),
+            }
+        )
+
+    for group in groups.values():
+        group["boletines"].sort(key=lambda item: (item.get("fecha", ""), item.get("documento", "")))
     return sorted(groups.values(), key=lambda item: item["sociedad"])
+
+
+def certificado_years() -> list[str]:
+    years = {
+        str(entrega.get("year", "")).strip()
+        for entrega in list_entregas()
+        if re.fullmatch(r"\d{4}", str(entrega.get("year", "")).strip())
+    }
+
+    import document_library
+
+    for folder in document_library.all_folders():
+        folder_year = str(folder.get("year", "")).strip()
+        if not re.fullmatch(r"\d{4}", folder_year):
+            folder_year = str(folder.get("date", ""))[:4]
+        if re.fullmatch(r"\d{4}", folder_year):
+            years.add(folder_year)
+    return sorted(years, reverse=True)
 
 
 def slugify(value: str) -> str:

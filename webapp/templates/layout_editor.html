@@ -63,6 +63,7 @@
 
 <style id="saved-layout-style">{{ layout_css|safe }}</style>
 <script id="layout-initial-state" type="application/json">{{ layout.elements|tojson }}</script>
+<script id="layout-initial-assets" type="application/json">{{ template_assets|default({})|tojson }}</script>
 
 <section class="layout-workspace" data-layout-editor>
   <div class="layout-canvas" data-layout-canvas>
@@ -99,6 +100,16 @@
         </label>
       </div>
 
+      <div class="layout-coordinate-grid">
+        <label>Ancho del cuadro o imagen
+          <input type="number" min="0" max="1200" step="1" value="0" placeholder="Original" data-layout-control="width">
+        </label>
+        <label>Alto del cuadro o imagen
+          <input type="number" min="0" max="1200" step="1" value="0" placeholder="Original" data-layout-control="height">
+        </label>
+      </div>
+      <small class="layout-tool-note">En tablas como Preliminares, el ancho ajusta la columna y el alto ajusta la fila completa.</small>
+
       <div class="layout-nudge-grid" aria-label="Mover elemento">
         <button class="icon-action nudge-up" type="button" data-layout-nudge-x="0" data-layout-nudge-y="-1" data-tooltip="Mover un punto hacia arriba" aria-label="Mover arriba">{{ icons.icon("arrow-right") }}</button>
         <button class="icon-action nudge-left" type="button" data-layout-nudge-x="-1" data-layout-nudge-y="0" data-tooltip="Mover un punto hacia la izquierda" aria-label="Mover izquierda">{{ icons.icon("arrow-right") }}</button>
@@ -130,6 +141,43 @@
         <input type="checkbox" data-layout-control="nowrap">
         <span>Mantener el texto en una línea</span>
       </label>
+
+      <label class="layout-checkbox">
+        <input type="checkbox" data-layout-control="hidden">
+        <span>Ocultar este elemento al visualizar y exportar</span>
+      </label>
+
+      <section class="layout-content-tools" data-layout-text-tools hidden>
+        <div class="layout-tool-heading">
+          <strong>Contenido del texto</strong>
+          <small>Permite corregir nombres, cargos y textos legales.</small>
+        </div>
+        <label class="layout-checkbox">
+          <input type="checkbox" data-layout-text-enabled>
+          <span>Usar texto personalizado</span>
+        </label>
+        <label>Texto del elemento
+          <textarea rows="5" maxlength="4000" data-layout-text-value disabled></textarea>
+        </label>
+        <small class="layout-tool-note">Los campos automáticos se vuelven fijos mientras esta opción esté activa.</small>
+      </section>
+
+      <section class="layout-content-tools" data-layout-image-tools hidden>
+        <div class="layout-tool-heading">
+          <strong>Imagen o firma</strong>
+          <small>PNG, JPG o WEBP de hasta 5 MB.</small>
+        </div>
+        <form class="layout-image-form" method="post" action="/editor-plantillas/imagen" enctype="multipart/form-data" data-layout-image-form>
+          <input type="hidden" name="slug" value="{{ template.slug }}">
+          <input type="hidden" name="element_id" value="" data-layout-image-id>
+          <input type="file" name="image" accept="image/png,image/jpeg,image/webp" required data-layout-image-input>
+          <button class="button button-small" type="submit">
+            {{ icons.icon("upload") }}<span>Subir reemplazo</span>
+          </button>
+        </form>
+        <div class="layout-image-status" data-layout-image-status aria-live="polite"></div>
+        <button class="text-action danger" type="button" data-layout-image-remove hidden>Volver a la imagen original</button>
+      </section>
     </fieldset>
 
     <dl class="layout-inspector-meta">

@@ -3,14 +3,14 @@
     <header class="annual-certificate-header">
       <div>
         <p>C.I. GREEN GLOBAL GROUP S.A.S.</p>
-        <h1>Certificado anual de regalías</h1>
+        <h1 data-layout-id="block-annual-title" data-layout-label="Título del certificado">Certificado anual de regalías</h1>
         <span>{{ periodo_label }}</span>
       </div>
-      <img src="/static/generated/logo.png" alt="Green Global Group">
+      <img data-layout-id="image-annual-logo" data-layout-label="Logo del certificado" src="/static/generated/logo.png" alt="Green Global Group">
     </header>
 
     <p class="annual-certificate-date">Medellín, {{ fecha_larga }}</p>
-    <p class="annual-certificate-intro">
+    <p class="annual-certificate-intro" data-layout-id="block-annual-intro" data-layout-label="Texto legal del certificado">
       C.I. Green Global Group S.A.S., identificada con NIT 901.640.887-1, certifica que al
       proveedor relacionado se le tramitaron y pagaron las regalías correspondientes ante la
       Agencia Nacional de Minería durante el período indicado.
@@ -61,15 +61,15 @@
 
     <div class="annual-certificate-notes">
       <strong>Observaciones</strong>
-      <p>Las regalías relacionadas fueron consignadas a la Agencia Nacional de Minería dentro del tiempo estipulado por la norma.</p>
-      <p>Las cantidades relacionadas corresponden a joyería en desuso.</p>
+      <p data-layout-id="block-annual-note-one" data-layout-label="Primera observación">Las regalías relacionadas fueron consignadas a la Agencia Nacional de Minería dentro del tiempo estipulado por la norma.</p>
+      <p data-layout-id="block-annual-note-two" data-layout-label="Segunda observación">Las cantidades relacionadas corresponden a joyería en desuso.</p>
     </div>
 
     <footer class="annual-certificate-signature">
-      <img src="/static/generated/firma.png" alt="Firma autorizada">
+      <img data-layout-id="image-signature" data-layout-label="Firma del representante" src="/static/generated/firma.png" alt="Firma autorizada">
       <div>
-        <strong>C.I. GREEN GLOBAL GROUP S.A.S.</strong>
-        <span>NIT 901.640.887-1</span>
+        <strong data-layout-id="block-legal-name" data-layout-label="Nombre o razón social de la firma">C.I. GREEN GLOBAL GROUP S.A.S.</strong>
+        <span data-layout-id="block-legal-id" data-layout-label="Identificación de la firma">NIT 901.640.887-1</span>
       </div>
     </footer>
   </div>

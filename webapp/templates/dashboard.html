@@ -125,6 +125,12 @@
     <small>Gramos finales</small>
     <strong>{{ dashboard.totals.peso_final_display }} g</strong>
   </div>
+  <div class="weight-variation {{ 'is-loss' if dashboard.totals.peso_diferencia < 0 else 'is-gain' if dashboard.totals.peso_diferencia > 0 else '' }}">
+    <span class="summary-icon kpi-variation">{{ icons.icon("trending") }}</span>
+    <small>Variación final vs. inicial</small>
+    <strong>{{ dashboard.totals.peso_diferencia_porcentaje_display }}</strong>
+    <span class="summary-detail">{{ dashboard.totals.peso_diferencia_display }} g · {{ dashboard.totals.peso_diferencia_descripcion }}</span>
+  </div>
   <div>
     <span class="summary-icon kpi-deliveries">{{ icons.icon("folder") }}</span>
     <small>Entregas</small>
@@ -171,7 +177,7 @@
     </div>
     <div class="revenue-chart weight-chart" data-chart-view="weight" style="--month-count: {{ dashboard.months|length }}" role="img" aria-label="Gramos facturados por mes de {{ dashboard.year }}" hidden>
       {% for month in dashboard.months %}
-      <div class="chart-column" title="{{ month.name }}: {{ month.peso_inicial_display }} g iniciales / {{ month.peso_final_display }} g finales">
+      <div class="chart-column" title="{{ month.name }}: {{ month.peso_inicial_display }} g iniciales / {{ month.peso_final_display }} g finales / {{ month.peso_diferencia_porcentaje_display }} de variación">
         <span class="chart-value">{{ month.peso_final_display ~ " g" if month.peso_final else "" }}</span>
         <div class="weight-chart-pair">
           <span><i class="initial" style="height: {{ month.peso_inicial_bar_percent }}%"></i></span>
@@ -204,6 +210,7 @@
             <th>Valor pagado</th>
             <th>Gramos iniciales</th>
             <th>Gramos finales</th>
+            <th>Variación</th>
           </tr>
         </thead>
         <tbody>
@@ -218,6 +225,7 @@
             <td>{{ month.valor_pagado_display }}</td>
             <td>{{ month.peso_inicial_display }} g</td>
             <td>{{ month.peso_final_display }} g</td>
+            <td><strong>{{ month.peso_diferencia_porcentaje_display }}</strong><br><small>{{ month.peso_diferencia_display }} g</small></td>
           </tr>
           {% endfor %}
         </tbody>
@@ -232,6 +240,7 @@
             <th>{{ dashboard.totals.valor_pagado_display }}</th>
             <th>{{ dashboard.totals.peso_inicial_display }} g</th>
             <th>{{ dashboard.totals.peso_final_display }} g</th>
+            <th>{{ dashboard.totals.peso_diferencia_porcentaje_display }}</th>
           </tr>
         </tfoot>
       </table>

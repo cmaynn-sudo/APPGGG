@@ -30,6 +30,9 @@ DASHBOARD_FIELDS = (
     "peso_final",
 )
 DASHBOARD_NUMBER_FIELDS = DASHBOARD_FIELDS[3:]
+CERTIFICATE_FIELDS = ("nit", "finos_oro", "finos_plata")
+QUALITY_FIELDS = DASHBOARD_FIELDS + CERTIFICATE_FIELDS
+QUALITY_NUMBER_FIELDS = DASHBOARD_NUMBER_FIELDS + ("finos_oro", "finos_plata")
 DASHBOARD_FIELD_LABELS = {
     "documento": "Documento",
     "sociedad": "Proveedor",
@@ -41,6 +44,9 @@ DASHBOARD_FIELD_LABELS = {
     "valor_pagado": "Valor pagado",
     "peso_inicial": "Gramos iniciales",
     "peso_final": "Gramos finales",
+    "nit": "NIT",
+    "finos_oro": "Finos de oro",
+    "finos_plata": "Finos de plata",
 }
 
 
@@ -293,13 +299,16 @@ def apply_dashboard_override(record: dict[str, Any], override: dict[str, Any] | 
     if not isinstance(values, dict):
         values = {}
     applied = set()
-    for field in DASHBOARD_FIELDS:
+    for field in QUALITY_FIELDS:
         if field not in values or values[field] in (None, ""):
             continue
         result[field] = values[field]
         applied.add(field)
     result["_missing_fields"] = [
         field for field in result.get("_missing_fields", []) if field not in applied
+    ]
+    result["_certificate_missing_fields"] = [
+        field for field in result.get("_certificate_missing_fields", []) if field not in applied
     ]
     result["_manual_override"] = bool(applied)
     return result
@@ -360,11 +369,13 @@ def dashboard_data_quality(
                 record = {
                     "documento": inferred_code,
                     "sociedad": "",
+                    "nit": "",
                     "date": "",
-                    **{field: 0.0 for field in DASHBOARD_NUMBER_FIELDS},
+                    **{field: 0.0 for field in QUALITY_NUMBER_FIELDS},
                     "_missing_fields": [
                         field for field in DASHBOARD_FIELDS if not (field == "documento" and inferred_code)
                     ],
+                    "_certificate_missing_fields": list(CERTIFICATE_FIELDS),
                 }
 
             if not record.get("date") and folder.get("date"):
@@ -372,8 +383,16 @@ def dashboard_data_quality(
                 record["_missing_fields"] = [
                     field for field in record.get("_missing_fields", []) if field != "date"
                 ]
+                record["_certificate_missing_fields"] = [
+                    field for field in record.get("_certificate_missing_fields", []) if field != "date"
+                ]
             record = apply_dashboard_override(record, override)
-            missing_fields = list(dict.fromkeys(record.get("_missing_fields", [])))
+            missing_fields = list(
+                dict.fromkeys(
+                    record.get("_missing_fields", [])
+                    + record.get("_certificate_missing_fields", [])
+                )
+            )
             has_override = bool(override and override.get("values"))
             if parsed and missing_fields:
                 incomplete += 1
@@ -387,10 +406,10 @@ def dashboard_data_quality(
                     ""
                     if field in missing_fields
                     else calculations.fmt_number(record.get(field, ""), places=2)
-                    if field in DASHBOARD_NUMBER_FIELDS
+                    if field in QUALITY_NUMBER_FIELDS
                     else record.get(field, "")
                 )
-                for field in DASHBOARD_FIELDS
+                for field in QUALITY_FIELDS
             }
             items.append(
                 {
@@ -557,7 +576,20 @@ def parse_billing_text(raw_text: str) -> tuple[dict[str, Any] | None, str]:
         text,
         flags=re.IGNORECASE,
     )
-    subtotal = find_number(text, r"VALOR\s+TOTAL\s+METALES\s*\(COP\)\s*\$?\s*([0-9][0-9.,]*)")
+    if not received:
+        received = re.search(
+            r"PESO\s+RECIBIDO\s+([0-9][0-9.,]*)\s*G\s+PESO\s+FUNDIDO\s+([0-9][0-9.,]*)\s*G",
+            text,
+            flags=re.IGNORECASE,
+        )
+    web_totals = re.search(
+        r"VALOR\s+TOTAL\s+METALES\s*\(COP\)\s+RETEFUENTE\s*\(COP\)\s+VALOR\s+A\s+PAGAR\s*\(COP\)\s*\$?\s*([0-9][0-9.,]*)\s*\$?\s*-?[0-9][0-9.,]*\s*\$?\s*([0-9][0-9.,]*)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    subtotal = find_number(text, r"VALOR\s+TOTAL(?:\s+DE)?\s+METALES\s*\(COP\)\s*\$?\s*([0-9][0-9.,]*)")
+    if subtotal is None and web_totals:
+        subtotal = parse_number(web_totals.group(1))
     if not received or subtotal is None:
         if not received and subtotal is None:
             reason = "No se reconocieron los pesos ni el valor total; el formato del boletín es diferente."
@@ -567,22 +599,58 @@ def parse_billing_text(raw_text: str) -> tuple[dict[str, Any] | None, str]:
             reason = "No se reconoció el valor total de metales del boletín."
         return None, reason
 
-    raw_date = find_text(text, r"FECHA\s+DE\s+LIQUIDACI[ÓO]N:\s*(\d{1,2}/\d{1,2}/\d{4})")
-    parsed_date = ""
-    if raw_date:
-        try:
-            parsed_date = datetime.strptime(raw_date, "%d/%m/%Y").date().isoformat()
-        except ValueError:
-            parsed_date = ""
+    raw_date = find_text(
+        text,
+        r"FECHA\s+DE\s+LIQUIDACI[ÓO]N\s*:\s*([0-9]{1,4}[/-][0-9]{1,2}[/-][0-9]{1,4})",
+    )
+    parsed_date = parse_document_date(raw_date)
 
     royalties = re.search(
         r"REGAL[IÍ](?:A|ZA)S\s+ADEUDADAS\s+POR\s+EL\s+PROVEEDOR.*?ORO\s+PLATA\s+\$\s*([0-9][0-9.,]*)\s+\$\s*([0-9][0-9.,]*)",
         text,
         flags=re.IGNORECASE,
     )
+    web_royalties = re.search(
+        r"REGAL[IÍ]AS\s+ADEUDADAS\s+POR\s+EL\s+PROVEEDOR.*?ORO\s+PLATA\s*\$?\s*[0-9][0-9.,]*\s*\$?\s*[0-9][0-9.,]*\s*\$\s*([0-9][0-9.,]*)\s*\$\s*([0-9][0-9.,]*)\s+VALOR\s+A\s+TRANSFERIR",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if web_royalties:
+        royalties = web_royalties
     documento = find_text(text, r"DOCUMENTO:\s*([A-Z0-9Ñ._-]+)")
     sociedad = find_text(text, r"PROVEEDOR:\s*(.*?)\s+NIT:")
+    nits = re.findall(r"\bNIT\s*:\s*([0-9][0-9.\-]+)", text, flags=re.IGNORECASE)
+    provider_nit = nits[-1] if nits else ""
+    fine_values = re.search(
+        r"FINO\s*\(\s*G\s*\)\s*\$?\s*([0-9][0-9.,]*)\s+\$?\s*([0-9][0-9.,]*)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    web_metals = re.search(
+        r"VALOR\s+METAL\s*\(COP\)\s+ORO\s+[0-9][0-9.,]*\s+([0-9][0-9.,]*)\s*\$\s*[0-9][0-9.,]*\s*\$\s*[0-9][0-9.,]*\s+PLATA\s+[0-9][0-9.,]*\s+([0-9][0-9.,]*)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if not fine_values and web_metals:
+        fine_values = web_metals
+    law_values = re.search(
+        r"LEY\s*%\s*\$?\s*([0-9][0-9.,]*)\s+\$?\s*([0-9][0-9.,]*)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    peso_final = parse_number(received.group(2))
+    if fine_values:
+        finos_oro = parse_number(fine_values.group(1))
+        finos_plata = parse_number(fine_values.group(2))
+    elif law_values:
+        finos_oro = calculations.excel_round(peso_final * parse_number(law_values.group(1)) / 1000, 2)
+        finos_plata = calculations.excel_round(peso_final * parse_number(law_values.group(2)) / 1000, 2)
+    else:
+        finos_oro = None
+        finos_plata = None
     valor_a_pagar = find_number(text, r"VALOR\s+A\s+PAGAR\s*\(COP\)\s*\$?\s*([0-9][0-9.,]*)")
+    if web_totals:
+        valor_a_pagar = parse_number(web_totals.group(2))
     valor_pagado = find_number(
         text,
         r"VALOR\s+(?:A\s+TRANSFERIR|PAGADO)\s*(?:\(COP\))?\s*\$?\s*([0-9][0-9.,]*)",
@@ -590,6 +658,7 @@ def parse_billing_text(raw_text: str) -> tuple[dict[str, Any] | None, str]:
     result = {
         "documento": documento,
         "sociedad": sociedad,
+        "nit": provider_nit,
         "date": parsed_date,
         "subtotal": subtotal,
         "valor_a_pagar": valor_a_pagar if valor_a_pagar is not None else 0.0,
@@ -597,7 +666,9 @@ def parse_billing_text(raw_text: str) -> tuple[dict[str, Any] | None, str]:
         "regalia_plata": parse_number(royalties.group(2)) if royalties else 0.0,
         "valor_pagado": valor_pagado if valor_pagado is not None else 0.0,
         "peso_inicial": parse_number(received.group(1)),
-        "peso_final": parse_number(received.group(2)),
+        "peso_final": peso_final,
+        "finos_oro": finos_oro,
+        "finos_plata": finos_plata,
     }
     missing_fields = []
     if not documento:
@@ -613,7 +684,150 @@ def parse_billing_text(raw_text: str) -> tuple[dict[str, Any] | None, str]:
     if valor_pagado is None:
         missing_fields.append("valor_pagado")
     result["_missing_fields"] = missing_fields
+    result["_certificate_missing_fields"] = [
+        field
+        for field, value in (
+            ("documento", documento),
+            ("sociedad", sociedad),
+            ("nit", provider_nit),
+            ("date", parsed_date),
+            ("finos_oro", finos_oro),
+            ("finos_plata", finos_plata),
+            ("regalia_oro", result["regalia_oro"] if royalties else None),
+            ("regalia_plata", result["regalia_plata"] if royalties else None),
+        )
+        if value in (None, "")
+    ]
     return result, ""
+
+
+def parse_document_date(raw: str) -> str:
+    value = str(raw or "").strip()
+    for format_string in ("%d/%m/%Y", "%d-%m-%Y", "%Y-%m-%d", "%Y/%m/%d"):
+        try:
+            return datetime.strptime(value, format_string).date().isoformat()
+        except ValueError:
+            continue
+    return ""
+
+
+def historical_certificate_records(
+    folders: list[dict[str, Any]],
+    store: dict[str, Any] | None = None,
+):
+    store = store or data_store.load_store()
+    overrides = store.get("dashboard_overrides", {})
+    societies = store.get("sociedades", [])
+    for folder in folders:
+        source = folder.get("source")
+        if source not in {"local", "imported"}:
+            continue
+        detail_source = "importadas" if source == "imported" else "local"
+        detail = document_library.folder_detail(detail_source, folder.get("id", ""))
+        if not detail:
+            continue
+        for document in detail.get("docs", []):
+            name = str(document.get("name", ""))
+            if document.get("category") != "Boletines" and not name.upper().startswith("BOLETIN"):
+                continue
+            if not name.lower().endswith(".pdf"):
+                continue
+            path = document_path(document)
+            quality_id = dashboard_quality_id(document, folder)
+            override = overrides.get(quality_id, {}) if isinstance(overrides, dict) else {}
+            parsed = parse_billing_pdf(path) if path else None
+            if parsed:
+                parsed = dict(parsed)
+            else:
+                inferred_code = document_code_from_name(name)
+                fallback_date = str(folder.get("date", ""))
+                parsed = {
+                    "documento": inferred_code,
+                    "sociedad": "",
+                    "nit": "",
+                    "date": fallback_date,
+                    "finos_oro": 0.0,
+                    "finos_plata": 0.0,
+                    "regalia_oro": 0.0,
+                    "regalia_plata": 0.0,
+                    "_certificate_missing_fields": [
+                        field
+                        for field in (
+                            "documento",
+                            "sociedad",
+                            "nit",
+                            "date",
+                            "finos_oro",
+                            "finos_plata",
+                            "regalia_oro",
+                            "regalia_plata",
+                        )
+                        if not (field == "documento" and inferred_code)
+                        and not (field == "date" and fallback_date)
+                    ],
+                }
+            parsed = apply_dashboard_override(dict(parsed), override)
+            parsed["documento"] = parsed.get("documento") or document_code_from_name(name)
+            parsed["date"] = parsed.get("date") or folder.get("date", "")
+
+            society = matching_society(parsed, societies)
+            society_name = parsed.get("sociedad") or (society or {}).get("sociedad", "")
+            if not society_name:
+                continue
+            if not parsed.get("nit") and society:
+                parsed["nit"] = society.get("nit", "")
+            recovered_fields = {
+                field
+                for field in ("documento", "sociedad", "nit", "date")
+                if (
+                    bool(society_name)
+                    if field == "sociedad"
+                    else parsed.get(field) not in (None, "")
+                )
+            }
+            certificate_missing = [
+                field
+                for field in parsed.get("_certificate_missing_fields", [])
+                if field not in recovered_fields
+            ]
+            if certificate_missing:
+                continue
+            parsed_date = parse_iso_date(parsed.get("date", ""))
+            record_year = str(parsed_date.year if parsed_date else folder.get("year", ""))
+            record_month = str(folder.get("month", "")).strip().upper()
+            if not record_month and parsed_date:
+                record_month = core.MESES_ES[parsed_date.month]
+            yield {
+                "source": source,
+                "sociedad": society_name,
+                "nit": parsed.get("nit", ""),
+                "documento": parsed.get("documento", ""),
+                "fecha": parsed.get("date", ""),
+                "year": record_year,
+                "mes": record_month,
+                "finos_oro": parsed.get("finos_oro", 0.0),
+                "finos_plata": parsed.get("finos_plata", 0.0),
+                "regalia_oro": parsed.get("regalia_oro", 0.0),
+                "regalia_plata": parsed.get("regalia_plata", 0.0),
+                "certificate_missing_fields": [],
+            }
+
+
+def matching_society(parsed: dict[str, Any], societies: list[dict[str, Any]]) -> dict[str, Any] | None:
+    name = normalize_identity(parsed.get("sociedad", ""))
+    document_code = normalize_identity(str(parsed.get("documento", "")).split("-", 1)[0])
+    for society in societies:
+        if name and normalize_identity(society.get("sociedad", "")) == name:
+            return society
+    for society in societies:
+        code = normalize_identity(str(society.get("codigo", "")).split("-", 1)[0])
+        if code and document_code == code:
+            return society
+    return None
+
+
+def normalize_identity(value: object) -> str:
+    return re.sub(r"[^A-Z0-9]", "", str(value or "").upper())
 
 
 def find_text(text: str, pattern: str) -> str:
@@ -676,7 +890,7 @@ def unique_options(records: list[dict[str, Any]], value_key: str, label_key: str
 
 
 def summarize_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    return {
+    summary = {
         "subtotal": sum(record.get("subtotal", 0.0) for record in rows),
         "valor_a_pagar": sum(record.get("valor_a_pagar", 0.0) for record in rows),
         "regalia_oro": sum(record.get("regalia_oro", 0.0) for record in rows),
@@ -687,6 +901,13 @@ def summarize_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "boletines": len(rows),
         "entregas": len({record.get("delivery_id") for record in rows if record.get("delivery_id")}),
     }
+    summary["peso_diferencia"] = summary["peso_final"] - summary["peso_inicial"]
+    summary["peso_diferencia_porcentaje"] = (
+        summary["peso_diferencia"] / summary["peso_inicial"]
+        if summary["peso_inicial"]
+        else 0.0
+    )
+    return summary
 
 
 def format_summary(summary: dict[str, Any]) -> None:
@@ -694,3 +915,18 @@ def format_summary(summary: dict[str, Any]) -> None:
         summary[f"{key}_display"] = calculations.fmt_money(summary.get(key, 0.0))
     summary["peso_inicial_display"] = calculations.fmt_number(summary.get("peso_inicial", 0.0))
     summary["peso_final_display"] = calculations.fmt_number(summary.get("peso_final", 0.0))
+    difference = calculations.as_float(summary.get("peso_diferencia", 0.0))
+    percentage = calculations.as_float(summary.get("peso_diferencia_porcentaje", 0.0))
+    difference_display = calculations.fmt_number(difference)
+    percentage_display = calculations.fmt_percent(percentage)
+    summary["peso_diferencia_display"] = f"+{difference_display}" if difference > 0 else difference_display
+    summary["peso_diferencia_porcentaje_display"] = (
+        f"+{percentage_display}" if percentage > 0 else percentage_display
+    )
+    summary["peso_diferencia_descripcion"] = (
+        "más que el peso inicial"
+        if difference > 0
+        else "menos que el peso inicial"
+        if difference < 0
+        else "sin variación"
+    )

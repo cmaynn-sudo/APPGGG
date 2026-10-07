@@ -135,18 +135,40 @@
     const zoomControl = document.querySelector("[data-layout-zoom]");
     const templateControl = document.querySelector("[data-layout-template-select]");
     const initialState = document.querySelector("#layout-initial-state");
+    const initialAssets = document.querySelector("#layout-initial-assets");
     const savedStyle = document.querySelector("#saved-layout-style");
+    const textTools = layoutEditor.querySelector("[data-layout-text-tools]");
+    const textEnabled = layoutEditor.querySelector("[data-layout-text-enabled]");
+    const textValue = layoutEditor.querySelector("[data-layout-text-value]");
+    const imageTools = layoutEditor.querySelector("[data-layout-image-tools]");
+    const imageForm = layoutEditor.querySelector("[data-layout-image-form]");
+    const imageIdInput = layoutEditor.querySelector("[data-layout-image-id]");
+    const imageInput = layoutEditor.querySelector("[data-layout-image-input]");
+    const imageStatus = layoutEditor.querySelector("[data-layout-image-status]");
+    const imageRemove = layoutEditor.querySelector("[data-layout-image-remove]");
     const defaults = {
       x: 0,
       y: 0,
       scale: 1,
       font_size: 0,
+      width: 0,
+      height: 0,
       text_align: "",
       nowrap: false,
+      hidden: false,
+      text_override: null,
     };
     let state = {};
+    let assets = {};
     let selectedElement = null;
     let dragState = null;
+    const originalMarkup = new WeakMap();
+    const originalText = new WeakMap();
+    const originalSources = new WeakMap();
+    const originalElementStyles = new WeakMap();
+    const originalCellStyles = new WeakMap();
+    const originalColumnStyles = new WeakMap();
+    const originalRowStyles = new WeakMap();
 
     try {
       const parsed = JSON.parse(initialState?.textContent || "{}");
@@ -155,6 +177,14 @@
       }
     } catch (_error) {
       state = {};
+    }
+    try {
+      const parsed = JSON.parse(initialAssets?.textContent || "{}");
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        assets = parsed;
+      }
+    } catch (_error) {
+      assets = {};
     }
 
     function numberValue(value, fallback) {
@@ -168,8 +198,14 @@
         y: numberValue(raw.y, defaults.y),
         scale: numberValue(raw.scale, defaults.scale),
         font_size: numberValue(raw.font_size, defaults.font_size),
+        width: numberValue(raw.width, defaults.width),
+        height: numberValue(raw.height, defaults.height),
         text_align: ["left", "center", "right"].includes(raw.text_align) ? raw.text_align : "",
         nowrap: Boolean(raw.nowrap),
+        hidden: Boolean(raw.hidden),
+        text_override: Object.prototype.hasOwnProperty.call(raw, "text_override") && typeof raw.text_override === "string"
+          ? raw.text_override
+          : null,
       };
     }
 
@@ -183,24 +219,97 @@
       }
     }
 
+    const elementStyleProperties = [
+      "transform",
+      "transform-origin",
+      "font-size",
+      "white-space",
+      "overflow-wrap",
+      "word-break",
+      "text-align",
+      "display",
+      "width",
+      "height",
+      "min-width",
+      "min-height",
+    ];
+    const cellStyleProperties = ["width", "height", "min-width", "min-height"];
+    const columnStyleProperties = ["width", "min-width"];
+    const rowStyleProperties = ["height", "min-height"];
+
+    function captureStyles(element, properties) {
+      return Object.fromEntries(properties.map((property) => [
+        property,
+        {
+          value: element.style.getPropertyValue(property),
+          priority: element.style.getPropertyPriority(property),
+        },
+      ]));
+    }
+
+    function restoreStyles(element, snapshot, properties) {
+      properties.forEach((property) => {
+        const original = snapshot?.[property];
+        if (original?.value) {
+          element.style.setProperty(property, original.value, original.priority);
+        } else {
+          element.style.removeProperty(property);
+        }
+      });
+    }
+
+    function isTextEditable(element) {
+      return element.tagName !== "IMG"
+        && Array.from(element.children).every((child) => child.tagName === "BR");
+    }
+
+    function excelColumnNumber(column) {
+      return Array.from(column).reduce((number, letter) => number * 26 + letter.charCodeAt(0) - 64, 0);
+    }
+
+    function cellGeometry(element) {
+      const cell = element.closest("[data-cell]");
+      const match = cell?.dataset.cell?.match(/^([A-Z]+)(\d+)$/);
+      const table = cell?.closest("table");
+      if (!cell || !match || !table) {
+        return { cell, column: null, row: cell?.closest("tr") || null };
+      }
+      const columnIndex = excelColumnNumber(match[1]) - 1;
+      return {
+        cell,
+        column: table.querySelectorAll("colgroup col")[columnIndex] || null,
+        row: cell.closest("tr"),
+      };
+    }
+
     function clearElementStyles(element) {
-      [
-        "transform",
-        "transform-origin",
-        "font-size",
-        "white-space",
-        "overflow-wrap",
-        "word-break",
-        "text-align",
-      ].forEach((property) => element.style.removeProperty(property));
+      restoreStyles(element, originalElementStyles.get(element), elementStyleProperties);
+      const { cell, column, row } = cellGeometry(element);
+      if (cell) {
+        restoreStyles(cell, originalCellStyles.get(cell), cellStyleProperties);
+      }
+      if (originalMarkup.has(element)) {
+        element.innerHTML = originalMarkup.get(element);
+      }
+      if (originalSources.has(element)) {
+        element.setAttribute("src", originalSources.get(element));
+      }
     }
 
     function applySettings(element, settings) {
       clearElementStyles(element);
+      const elementId = element.dataset.layoutId;
+      if (element.tagName === "IMG" && assets[elementId]?.url) {
+        element.setAttribute("src", assets[elementId].url);
+      }
       if (!settings) {
         return;
       }
       const values = normalizedSettings(settings);
+      if (values.text_override !== null && isTextEditable(element)) {
+        element.textContent = values.text_override;
+        element.style.setProperty("white-space", "pre-wrap", "important");
+      }
       element.style.setProperty(
         "transform",
         `translate(${values.x}px, ${values.y}px) scale(${values.scale})`,
@@ -218,12 +327,53 @@
       if (values.text_align) {
         element.style.setProperty("text-align", values.text_align, "important");
       }
+      const { cell, column, row } = cellGeometry(element);
+      if (cell) {
+        if (values.width > 0) {
+          cell.style.setProperty("width", `${values.width}px`, "important");
+          cell.style.setProperty("min-width", `${values.width}px`, "important");
+          column?.style.setProperty("width", `${values.width}px`, "important");
+          column?.style.setProperty("min-width", `${values.width}px`, "important");
+        }
+        if (values.height > 0) {
+          cell.style.setProperty("height", `${values.height}px`, "important");
+          cell.style.setProperty("min-height", `${values.height}px`, "important");
+          row?.style.setProperty("height", `${values.height}px`, "important");
+          row?.style.setProperty("min-height", `${values.height}px`, "important");
+          element.style.setProperty("display", "block", "important");
+          element.style.setProperty("min-height", `${values.height}px`, "important");
+        }
+      } else {
+        if (values.width > 0) {
+          element.style.setProperty("width", `${values.width}px`, "important");
+        }
+        if (values.height > 0) {
+          element.style.setProperty("height", `${values.height}px`, "important");
+        }
+      }
+      if (values.hidden) {
+        element.style.setProperty("display", "none", "important");
+      }
     }
 
     function elementForId(elementId) {
       return Array.from(preview?.querySelectorAll("[data-layout-id]") || []).find(
         (element) => element.dataset.layoutId === elementId,
       );
+    }
+
+    function refreshGeometry() {
+      editableElements.forEach((element) => {
+        const { column, row } = cellGeometry(element);
+        if (column) restoreStyles(column, originalColumnStyles.get(column), columnStyleProperties);
+        if (row) restoreStyles(row, originalRowStyles.get(row), rowStyleProperties);
+      });
+      editableElements.forEach((element) => {
+        const values = normalizedSettings(state[element.dataset.layoutId]);
+        const { column, row } = cellGeometry(element);
+        if (values.width > 0 && column) column.style.setProperty("width", `${values.width}px`, "important");
+        if (values.height > 0 && row) row.style.setProperty("height", `${values.height}px`, "important");
+      });
     }
 
     function elementLabel(element) {
@@ -237,6 +387,25 @@
     }
 
     const editableElements = Array.from(preview?.querySelectorAll("[data-layout-id]") || []);
+    editableElements.forEach((element) => {
+      originalMarkup.set(element, element.innerHTML);
+      originalText.set(element, (element.textContent || "").trim());
+      originalElementStyles.set(element, captureStyles(element, elementStyleProperties));
+      if (element.tagName === "IMG") {
+        originalSources.set(element, element.getAttribute("src") || "");
+      }
+      const cell = element.closest("[data-cell]");
+      if (cell && !originalCellStyles.has(cell)) {
+        originalCellStyles.set(cell, captureStyles(cell, cellStyleProperties));
+      }
+      const { column, row } = cellGeometry(element);
+      if (column && !originalColumnStyles.has(column)) {
+        originalColumnStyles.set(column, captureStyles(column, columnStyleProperties));
+      }
+      if (row && !originalRowStyles.has(row)) {
+        originalRowStyles.set(row, captureStyles(row, rowStyleProperties));
+      }
+    });
     if (elementSelect) {
       editableElements.forEach((element) => {
         const option = document.createElement("option");
@@ -249,10 +418,10 @@
     if (savedStyle) {
       savedStyle.textContent = "";
     }
-    Object.entries(state).forEach(([elementId, settings]) => {
-      const element = elementForId(elementId);
-      if (element) {
-        applySettings(element, settings);
+    editableElements.forEach((element) => {
+      const elementId = element.dataset.layoutId;
+      if (state[elementId] || assets[elementId]) {
+        applySettings(element, state[elementId]);
       }
     });
     syncState();
@@ -272,6 +441,37 @@
       if (scaleOutput) {
         scaleOutput.value = `${Math.round(settings.scale * 100)}%`;
         scaleOutput.textContent = `${Math.round(settings.scale * 100)}%`;
+      }
+      const canEditText = Boolean(selectedElement && isTextEditable(selectedElement));
+      if (textTools) {
+        textTools.hidden = !canEditText;
+      }
+      if (canEditText && textEnabled && textValue) {
+        const customText = settings.text_override !== null;
+        textEnabled.checked = customText;
+        textValue.disabled = !customText;
+        textValue.value = customText
+          ? settings.text_override
+          : originalText.get(selectedElement) || "";
+      }
+
+      const isImage = selectedElement?.tagName === "IMG";
+      if (imageTools) {
+        imageTools.hidden = !isImage;
+      }
+      if (isImage) {
+        const elementId = selectedElement.dataset.layoutId;
+        if (imageIdInput) {
+          imageIdInput.value = elementId;
+        }
+        if (imageStatus) {
+          imageStatus.textContent = assets[elementId]
+            ? `Reemplazo activo: ${assets[elementId].filename || "imagen personalizada"}`
+            : "Se está usando la imagen original de la plantilla.";
+        }
+        if (imageRemove) {
+          imageRemove.hidden = !assets[elementId];
+        }
       }
     }
 
@@ -307,6 +507,7 @@
       const settings = normalizedSettings(state[elementId]);
       state[elementId] = normalizedSettings({ ...settings, ...changes });
       applySettings(selectedElement, state[elementId]);
+      refreshGeometry();
       updateInspector(state[elementId]);
       syncState();
     }
@@ -363,6 +564,104 @@
       });
     });
 
+    textEnabled?.addEventListener("change", () => {
+      if (!selectedElement || !isTextEditable(selectedElement)) {
+        return;
+      }
+      updateSelected({
+        text_override: textEnabled.checked
+          ? textValue?.value ?? originalText.get(selectedElement) ?? ""
+          : null,
+      });
+    });
+
+    textValue?.addEventListener("input", () => {
+      if (!selectedElement || !textEnabled?.checked || !isTextEditable(selectedElement)) {
+        return;
+      }
+      const elementId = selectedElement.dataset.layoutId;
+      const settings = normalizedSettings(state[elementId]);
+      state[elementId] = normalizedSettings({ ...settings, text_override: textValue.value });
+      applySettings(selectedElement, state[elementId]);
+      syncState();
+    });
+
+    imageForm?.addEventListener("submit", async (event) => {
+      if (!selectedElement || selectedElement.tagName !== "IMG" || !imageInput?.files?.length) {
+        return;
+      }
+      event.preventDefault();
+      const elementId = selectedElement.dataset.layoutId;
+      if (imageIdInput) {
+        imageIdInput.value = elementId;
+      }
+      const submit = imageForm.querySelector("button[type='submit']");
+      if (submit) {
+        submit.disabled = true;
+      }
+      if (imageStatus) {
+        imageStatus.textContent = "Subiendo y guardando la imagen...";
+      }
+      try {
+        const response = await fetch(imageForm.action, {
+          method: "POST",
+          body: new FormData(imageForm),
+          credentials: "same-origin",
+          headers: { "X-Requested-With": "fetch" },
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.url) {
+          throw new Error(result.message || "No se pudo guardar la imagen.");
+        }
+        assets[elementId] = { url: result.url, filename: result.filename };
+        applySettings(selectedElement, state[elementId]);
+        updateInspector(normalizedSettings(state[elementId]));
+        imageInput.value = "";
+      } catch (error) {
+        if (imageStatus) {
+          imageStatus.textContent = error.message || "No se pudo guardar la imagen.";
+        }
+      } finally {
+        if (submit) {
+          submit.disabled = false;
+        }
+      }
+    });
+
+    imageRemove?.addEventListener("click", async () => {
+      if (!selectedElement || selectedElement.tagName !== "IMG") {
+        return;
+      }
+      const elementId = selectedElement.dataset.layoutId;
+      imageRemove.disabled = true;
+      if (imageStatus) {
+        imageStatus.textContent = "Restaurando la imagen original...";
+      }
+      try {
+        const response = await fetch("/editor-plantillas/imagen/eliminar", {
+          method: "POST",
+          body: new URLSearchParams({
+            slug: imageForm?.querySelector("input[name='slug']")?.value || "",
+            element_id: elementId,
+          }),
+          credentials: "same-origin",
+          headers: { "X-Requested-With": "fetch" },
+        });
+        if (!response.ok) {
+          throw new Error("No se pudo restaurar la imagen original.");
+        }
+        delete assets[elementId];
+        applySettings(selectedElement, state[elementId]);
+        updateInspector(normalizedSettings(state[elementId]));
+      } catch (error) {
+        if (imageStatus) {
+          imageStatus.textContent = error.message || "No se pudo restaurar la imagen original.";
+        }
+      } finally {
+        imageRemove.disabled = false;
+      }
+    });
+
     layoutEditor.querySelectorAll("[data-layout-nudge-x]").forEach((button) => {
       button.addEventListener("click", () => {
         if (!selectedElement) {
@@ -381,7 +680,8 @@
         return;
       }
       delete state[selectedElement.dataset.layoutId];
-      clearElementStyles(selectedElement);
+      applySettings(selectedElement, null);
+      refreshGeometry();
       updateInspector(defaults);
       syncState();
     });

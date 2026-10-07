@@ -81,6 +81,9 @@ class DashboardSummaryTests(unittest.TestCase):
         self.assertEqual(result["totals"]["valor_pagado"], 2520.0)
         self.assertEqual(result["totals"]["peso_inicial"], 300.0)
         self.assertEqual(result["totals"]["peso_final"], 285.0)
+        self.assertEqual(result["totals"]["peso_diferencia"], -15.0)
+        self.assertEqual(result["totals"]["peso_diferencia_porcentaje"], -0.05)
+        self.assertEqual(result["totals"]["peso_diferencia_porcentaje_display"], "-5,00%")
 
     def test_money_and_weight_charts_use_independent_scales(self) -> None:
         result = analytics.dashboard_summary({"year": "2026"})
@@ -165,6 +168,7 @@ class DashboardSummaryTests(unittest.TestCase):
         DOCUMENTO: CORI-4 PROVEEDOR: COMERCIAL RIO VERDE S.A.S NIT: 900.534.616-3
         FECHA DE LIQUIDACION: 12/03/2026
         PESO RECIBIDO PESO FUNDIDO 1.000 G 920 G
+        FINO (G) 895,25 24,75
         VALOR TOTAL METALES (COP) $ 100.000.000
         VALOR A PAGAR (COP) $ 97.500.000
         REGALIZAS ADEUDADAS POR EL PROVEEDOR ORO PLATA $ 474.135 $ 7.785,95
@@ -177,7 +181,11 @@ class DashboardSummaryTests(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result["regalia_oro"], 474135.0)
         self.assertEqual(result["regalia_plata"], 7785.95)
+        self.assertEqual(result["nit"], "900.534.616-3")
+        self.assertEqual(result["finos_oro"], 895.25)
+        self.assertEqual(result["finos_plata"], 24.75)
         self.assertEqual(result["_missing_fields"], [])
+        self.assertEqual(result["_certificate_missing_fields"], [])
 
     def test_manual_override_fills_only_dashboard_missing_fields(self) -> None:
         record = {
@@ -186,15 +194,50 @@ class DashboardSummaryTests(unittest.TestCase):
             "regalia_oro": 0.0,
             "regalia_plata": 0.0,
             "_missing_fields": ["regalia_oro", "regalia_plata"],
+            "_certificate_missing_fields": ["finos_oro", "finos_plata"],
         }
-        override = {"values": {"regalia_oro": 474135.0, "regalia_plata": 7785.95}}
+        override = {
+            "values": {
+                "regalia_oro": 474135.0,
+                "regalia_plata": 7785.95,
+                "finos_oro": 895.25,
+                "finos_plata": 24.75,
+            }
+        }
 
         corrected = analytics.apply_dashboard_override(record, override)
 
         self.assertEqual(corrected["regalia_oro"], 474135.0)
         self.assertEqual(corrected["regalia_plata"], 7785.95)
+        self.assertEqual(corrected["finos_oro"], 895.25)
         self.assertEqual(corrected["_missing_fields"], [])
+        self.assertEqual(corrected["_certificate_missing_fields"], [])
         self.assertTrue(corrected["_manual_override"])
+
+    def test_web_bulletin_columns_and_royalty_totals_are_read(self) -> None:
+        text = """
+        DOCUMENTO: TEST-1 FECHA DE LIQUIDACIÓN: 2026-10-07
+        PROVEEDOR: PRUEBA SAS NIT: 900.000.000-1
+        PESO RECIBIDO 1.000 G PESO FUNDIDO 920 G
+        VARIABLES LEY % FINO (G) PRECIO (COP) VALOR METAL (COP)
+        ORO 850 782 $ 288.392 $ 225.522.544
+        PLATA 120 110,4 $ 1.929 $ 212.962
+        VALOR TOTAL METALES (COP) RETEFUENTE (COP) VALOR A PAGAR (COP)
+        $ 225.735.506 $ -5.643.388 $ 220.092.118
+        REGALÍAS ADEUDADAS POR EL PROVEEDOR OCTUBRE 2026
+        ORO PLATA $ 20.000 $ 300,00 $ 15.640.000 $ 33.120
+        VALOR A TRANSFERIR $ 204.418.998
+        """
+        result, reason = analytics.parse_billing_text(text)
+        self.assertEqual(reason, "")
+        self.assertEqual(result["peso_inicial"], 1000)
+        self.assertEqual(result["finos_oro"], 782)
+        self.assertEqual(result["finos_plata"], 110.4)
+        self.assertEqual(result["subtotal"], 225735506)
+        self.assertEqual(result["valor_a_pagar"], 220092118)
+        self.assertEqual(result["regalia_oro"], 15640000)
+        self.assertEqual(result["regalia_plata"], 33120)
+        self.assertEqual(result["_certificate_missing_fields"], [])
 
 
 if __name__ == "__main__":

@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% import "icons.html" as icons %}
 
-{% block title %}Control de datos del dashboard{% endblock %}
+{% block title %}Control de datos históricos{% endblock %}
 
 {% block content %}
 <header class="page-header quality-page-header">
   <div>
     <p class="eyebrow">Herramienta de revisión</p>
-    <h1>Control de datos del dashboard</h1>
-    <p>Detecta campos ausentes en boletines históricos y permite completar únicamente la información estadística.</p>
+    <h1>Control de datos históricos</h1>
+    <p>Detecta campos ausentes en boletines históricos y permite completar la información estadística y de certificados.</p>
   </div>
   <a class="icon-action" href="/" data-tooltip="Volver al dashboard" aria-label="Volver al dashboard">
     {{ icons.icon("x") }}
@@ -28,7 +28,7 @@
 
 <p class="quality-safety-note">
   {{ icons.icon("file-search") }}
-  <span>Estos cambios alimentan solo el dashboard. No alteran el PDF original, las fórmulas ni los documentos de la entrega.</span>
+  <span>Estos cambios alimentan el dashboard y los certificados. No alteran el PDF original, las fórmulas ni los documentos de la entrega.</span>
 </p>
 
 <section class="quality-list" aria-label="Boletines que requieren control">
@@ -79,6 +79,9 @@
         <label class="{{ 'field-missing' if 'sociedad' in item.missing_fields else '' }}">Proveedor
           <input name="sociedad" value="{{ item["values"].sociedad }}" placeholder="Razón social">
         </label>
+        <label class="{{ 'field-missing' if 'nit' in item.missing_fields else '' }}">NIT
+          <input name="nit" value="{{ item["values"].nit }}" placeholder="Ej. 900.000.000-1">
+        </label>
         <label class="{{ 'field-missing' if 'date' in item.missing_fields else '' }}">Fecha
           <input name="date" type="date" value="{{ item["values"].date }}">
         </label>
@@ -106,10 +109,16 @@
         <label class="{{ 'field-missing' if 'peso_final' in item.missing_fields else '' }}">Gramos finales
           <input name="peso_final" value="{{ item["values"].peso_final }}" inputmode="decimal" placeholder="0">
         </label>
+        <label class="{{ 'field-missing' if 'finos_oro' in item.missing_fields else '' }}">Finos de oro
+          <input name="finos_oro" value="{{ item["values"].finos_oro }}" inputmode="decimal" placeholder="0">
+        </label>
+        <label class="{{ 'field-missing' if 'finos_plata' in item.missing_fields else '' }}">Finos de plata
+          <input name="finos_plata" value="{{ item["values"].finos_plata }}" inputmode="decimal" placeholder="0">
+        </label>
       </div>
 
       <div class="quality-form-actions">
-        <button class="button button-small" type="submit" data-tooltip="Guardar estas cifras solo para el dashboard">
+        <button class="button button-small" type="submit" data-tooltip="Guardar estas cifras para el dashboard y los certificados">
           {{ icons.icon("badge-check") }}<span>Guardar corrección</span>
         </button>
         {% if item.folder_href %}

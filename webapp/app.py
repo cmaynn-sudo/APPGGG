@@ -25,7 +25,7 @@ import historical_import
 import persistence
 import renderer
 from html_exporter import export_all_templates
-from template_catalog import SAMPLE_CONTEXT, STATIC_DIR, TEMPLATE_BY_SLUG, TEMPLATE_DIR, TEMPLATES
+from template_catalog import CERTIFICADO_ANUAL, SAMPLE_CONTEXT, STATIC_DIR, TEMPLATE_BY_SLUG, TEMPLATE_DIR, TEMPLATES
 
 
 env = Environment(
@@ -131,6 +131,12 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             elif path.startswith("/archivos/subido/"):
                 file_id = unquote(path.removeprefix("/archivos/subido/").strip("/"))
                 self.serve_uploaded_file(file_id, download=self.wants_download(query))
+            elif path.startswith("/plantillas/asset/"):
+                parts = [unquote(part) for part in path.split("/") if part]
+                if len(parts) != 4:
+                    self.send_error(HTTPStatus.NOT_FOUND, "Imagen de plantilla no encontrada")
+                    return
+                self.serve_template_asset(parts[2], parts[3])
             elif path.startswith("/print/"):
                 self.render_business_print(path, query)
             elif path == "/api/sociedades":
@@ -188,6 +194,10 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             if path == "/respaldo/importar":
                 _fields, files = self.read_multipart_form()
                 self.import_state_backup(files)
+                return
+            if path == "/editor-plantillas/imagen":
+                fields, files = self.read_multipart_form()
+                self.handle_template_asset_upload(fields, files)
                 return
 
             form = self.read_form()
@@ -260,6 +270,16 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 self.redirect(
                     f"/editor-plantillas?plantilla={quote(slug)}&msg=Dise%C3%B1o%20restablecido"
                 )
+            elif path == "/editor-plantillas/imagen/eliminar":
+                slug = form.get("slug", "")
+                element_id = form.get("element_id", "")
+                data_store.delete_template_asset(slug, element_id)
+                if self.headers.get("X-Requested-With") == "fetch":
+                    self.send_json({"ok": True, "element_id": element_id})
+                else:
+                    self.redirect(
+                        f"/editor-plantillas?plantilla={quote(slug)}&msg=Imagen%20original%20restaurada"
+                    )
             elif path == "/entregas/eliminar":
                 self.delete_folder(form)
             elif path == "/archivos/eliminar":
@@ -348,10 +368,7 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             month = month if month in core.MESES_ORDEN else current_month
         else:
             month = ""
-        years = sorted(
-            {e.get("year", "") for e in data_store.list_entregas() if e.get("year")},
-            reverse=True,
-        ) or [year]
+        years = data_store.certificado_years() or [year]
         if year not in years:
             year = years[0]
         self.render(
@@ -398,13 +415,22 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             slug = "recibo-metales"
         spec = TEMPLATE_BY_SLUG[slug]
         layout = data_store.get_template_layout(slug)
+        assets = data_store.get_template_assets(slug)
+        asset_urls = {
+            element_id: {
+                "url": f"/plantillas/asset/{quote(slug, safe='')}/{quote(element_id, safe='')}?v={quote(metadata.get('updated_at', ''), safe='')}",
+                "filename": metadata.get("filename", "Imagen personalizada"),
+            }
+            for element_id, metadata in assets.items()
+        }
         self.render(
             "layout_editor.html",
             {
-                "templates": TEMPLATES,
+                "templates": [*TEMPLATES, CERTIFICADO_ANUAL],
                 "template": spec,
                 "generated_template": spec.render_template_name,
                 "layout": layout,
+                "template_assets": asset_urls,
                 "layout_css": renderer.template_layout_css(slug, layout),
                 "message": query.get("msg", [""])[0],
                 **SAMPLE_CONTEXT,
@@ -746,6 +772,47 @@ class RecepcionHandler(BaseHTTPRequestHandler):
             self.send_error(HTTPStatus.NOT_FOUND, "Archivo no encontrado")
             return
         self.serve_file(path, file_info.get("name", path.name), download)
+
+    def serve_template_asset(self, slug: str, element_id: str) -> None:
+        metadata, path = data_store.template_asset_path(slug, element_id)
+        if not metadata or not path:
+            self.send_error(HTTPStatus.NOT_FOUND, "Imagen de plantilla no encontrada")
+            return
+        self.send_bytes(path.read_bytes(), metadata.get("content_type", "image/png"))
+
+    def handle_template_asset_upload(
+        self,
+        fields: dict[str, str],
+        files: list[dict[str, object]],
+    ) -> None:
+        slug = fields.get("slug", "")
+        element_id = fields.get("element_id", "")
+        image = next((item for item in files if item.get("field") == "image"), None)
+        if not image:
+            raise ValueError("Selecciona una firma o imagen para subir.")
+        metadata = data_store.save_template_asset(
+            slug,
+            element_id,
+            str(image.get("filename") or "imagen"),
+            bytes(image.get("content") or b""),
+        )
+        asset_url = (
+            f"/plantillas/asset/{quote(slug, safe='')}/{quote(element_id, safe='')}"
+            f"?v={quote(metadata.get('updated_at', ''), safe='')}"
+        )
+        if self.headers.get("X-Requested-With") == "fetch":
+            self.send_json(
+                {
+                    "ok": True,
+                    "element_id": element_id,
+                    "url": asset_url,
+                    "filename": metadata.get("filename", "Imagen personalizada"),
+                }
+            )
+            return
+        self.redirect(
+            f"/editor-plantillas?plantilla={quote(slug)}&msg=Imagen%20actualizada"
+        )
 
     def serve_file(self, path: Path, filename: str, download: bool = False) -> None:
         content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"

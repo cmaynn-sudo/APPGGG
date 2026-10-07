@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import base64
+import html as html_lib
 import io
 import math
 import re
+from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 from xml.sax.saxutils import escape
@@ -32,9 +35,14 @@ def render_print_html(
     if context:
         data.update(context)
     body = env.get_template(spec.render_template_name).render(**data)
+    import data_store
+
+    layout = data_store.get_template_layout(slug)
+    assets = data_store.get_template_assets(slug)
+    body = apply_template_content_overrides(body, layout, assets)
     print_css = (STATIC_DIR / "print.css").read_text(encoding="utf-8")
     scale_css = print_scale_css(slug) if include_print_scale else ""
-    saved_layout_css = template_layout_css(slug)
+    saved_layout_css = template_layout_css(slug, layout)
     return f"""<!doctype html>
 <html lang="es">
 <head>
@@ -68,7 +76,7 @@ def template_layout_css(slug: str, layout: dict | None = None) -> str:
     rules = []
     for element_id, settings in elements.items():
         if not isinstance(element_id, str) or not re.fullmatch(
-            r"(?:cell-[A-Z]{1,3}\d+|image-\d+|block-[a-z0-9-]+)",
+            r"(?:cell-[A-Z]{1,3}\d+|image-[a-z0-9-]+|block-[a-z0-9-]+)",
             element_id,
         ):
             continue
@@ -82,8 +90,12 @@ def template_layout_css(slug: str, layout: dict | None = None) -> str:
             "transform-origin:center center !important",
         ]
         font_size = layout_number(settings.get("font_size"), 0.0, 0.0, 72.0)
+        width = layout_number(settings.get("width"), 0.0, 0.0, 1200.0)
+        height = layout_number(settings.get("height"), 0.0, 0.0, 1200.0)
         if font_size > 0:
             declarations.append(f"font-size:{font_size:.2f}px !important")
+        if settings.get("text_override") is not None:
+            declarations.append("white-space:pre-wrap !important")
         if settings.get("nowrap"):
             declarations.extend(
                 (
@@ -95,10 +107,184 @@ def template_layout_css(slug: str, layout: dict | None = None) -> str:
         text_align = str(settings.get("text_align", ""))
         if text_align in {"left", "center", "right"}:
             declarations.append(f"text-align:{text_align} !important")
+        if settings.get("hidden"):
+            declarations.append("display:none !important")
+        if not element_id.startswith("cell-"):
+            if width > 0:
+                declarations.append(f"width:{width:.2f}px !important")
+            if height > 0:
+                declarations.append(f"height:{height:.2f}px !important")
         rules.append(
             f'[data-layout-id="{element_id}"]' + "{" + ";".join(declarations) + "}"
         )
+        if element_id.startswith("cell-") and (width > 0 or height > 0):
+            cell_declarations = []
+            content_declarations = []
+            coordinate = element_id.removeprefix("cell-")
+            coordinate_match = re.fullmatch(r"([A-Z]{1,3})(\d+)", coordinate)
+            if width > 0:
+                cell_declarations.extend(
+                    (f"width:{width:.2f}px !important", f"min-width:{width:.2f}px !important")
+                )
+                if coordinate_match:
+                    column_number = excel_column_number(coordinate_match.group(1))
+                    rules.append(
+                        f'[data-template="{slug}"] .excel-sheet col:nth-child({column_number})'
+                        + "{"
+                        + f"width:{width:.2f}px !important"
+                        + "}"
+                    )
+            if height > 0:
+                cell_declarations.extend(
+                    (f"height:{height:.2f}px !important", f"min-height:{height:.2f}px !important")
+                )
+                if not settings.get("hidden"):
+                    content_declarations.append("display:block !important")
+                    content_declarations.append(f"min-height:{height:.2f}px !important")
+                if coordinate_match:
+                    row_number = int(coordinate_match.group(2))
+                    rules.append(
+                        f'[data-template="{slug}"] .excel-sheet tr:nth-of-type({row_number})'
+                        + "{"
+                        + f"height:{height:.2f}px !important"
+                        + "}"
+                    )
+            rules.append(
+                f'[data-cell="{coordinate}"]' + "{" + ";".join(cell_declarations) + "}"
+            )
+            if content_declarations:
+                rules.append(
+                    f'[data-layout-id="{element_id}"]'
+                    + "{"
+                    + ";".join(content_declarations)
+                    + "}"
+                )
     return "\n".join(rules)
+
+
+def excel_column_number(column: str) -> int:
+    number = 0
+    for character in column:
+        number = number * 26 + (ord(character) - ord("A") + 1)
+    return number
+
+
+def apply_template_content_overrides(
+    body: str,
+    layout: dict | None,
+    assets: dict[str, dict[str, str]] | None,
+) -> str:
+    elements = (layout or {}).get("elements", {})
+    text_overrides = {
+        element_id: settings.get("text_override")
+        for element_id, settings in elements.items()
+        if isinstance(settings, dict) and isinstance(settings.get("text_override"), str)
+    }
+    asset_sources: dict[str, str] = {}
+    if assets:
+        import data_store
+
+        uploads_root = data_store.UPLOADS_DIR.resolve()
+        for element_id, metadata in assets.items():
+            if not isinstance(metadata, dict):
+                continue
+            path = (data_store.UPLOADS_DIR / str(metadata.get("stored_path", ""))).resolve()
+            if not path.is_relative_to(uploads_root) or not path.is_file():
+                continue
+            content_type = str(metadata.get("content_type") or "image/png")
+            encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+            asset_sources[element_id] = f"data:{content_type};base64,{encoded}"
+    if not text_overrides and not asset_sources:
+        return body
+    parser = TemplateOverrideParser(text_overrides, asset_sources)
+    parser.feed(body)
+    parser.close()
+    return parser.rendered
+
+
+class TemplateOverrideParser(HTMLParser):
+    VOID_ELEMENTS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
+
+    def __init__(self, text_overrides: dict[str, str], asset_sources: dict[str, str]) -> None:
+        super().__init__(convert_charrefs=False)
+        self.text_overrides = text_overrides
+        self.asset_sources = asset_sources
+        self.parts: list[str] = []
+        self.suppressed_depth = 0
+        self.replacement_text = ""
+
+    @property
+    def rendered(self) -> str:
+        return "".join(self.parts)
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if self.suppressed_depth:
+            if tag not in self.VOID_ELEMENTS:
+                self.suppressed_depth += 1
+            return
+        raw = self.get_starttag_text()
+        attributes = dict(attrs)
+        element_id = attributes.get("data-layout-id", "") or ""
+        if tag == "img" and element_id in self.asset_sources:
+            raw = replace_html_attribute(raw, "src", self.asset_sources[element_id])
+        self.parts.append(raw)
+        if tag not in self.VOID_ELEMENTS and element_id in self.text_overrides:
+            self.suppressed_depth = 1
+            self.replacement_text = self.text_overrides[element_id]
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if self.suppressed_depth:
+            return
+        raw = self.get_starttag_text()
+        attributes = dict(attrs)
+        element_id = attributes.get("data-layout-id", "") or ""
+        if tag == "img" and element_id in self.asset_sources:
+            raw = replace_html_attribute(raw, "src", self.asset_sources[element_id])
+        self.parts.append(raw)
+
+    def handle_endtag(self, tag: str) -> None:
+        if self.suppressed_depth:
+            self.suppressed_depth -= 1
+            if self.suppressed_depth == 0:
+                text = html_lib.escape(self.replacement_text).replace("\r\n", "\n").replace("\r", "\n")
+                self.parts.append(text.replace("\n", "<br>"))
+                self.parts.append(f"</{tag}>")
+                self.replacement_text = ""
+            return
+        self.parts.append(f"</{tag}>")
+
+    def handle_data(self, data: str) -> None:
+        if not self.suppressed_depth:
+            self.parts.append(data)
+
+    def handle_entityref(self, name: str) -> None:
+        if not self.suppressed_depth:
+            self.parts.append(f"&{name};")
+
+    def handle_charref(self, name: str) -> None:
+        if not self.suppressed_depth:
+            self.parts.append(f"&#{name};")
+
+    def handle_comment(self, data: str) -> None:
+        if not self.suppressed_depth:
+            self.parts.append(f"<!--{data}-->")
+
+    def handle_decl(self, decl: str) -> None:
+        if not self.suppressed_depth:
+            self.parts.append(f"<!{decl}>")
+
+    def handle_pi(self, data: str) -> None:
+        if not self.suppressed_depth:
+            self.parts.append(f"<?{data}>")
+
+
+def replace_html_attribute(tag: str, name: str, value: str) -> str:
+    escaped = html_lib.escape(value, quote=True)
+    pattern = re.compile(rf"(\s{name}\s*=\s*)([\"']).*?\2", re.IGNORECASE | re.DOTALL)
+    if pattern.search(tag):
+        return pattern.sub(lambda match: f'{match.group(1)}"{escaped}"', tag, count=1)
+    closing = "/>" if tag.rstrip().endswith("/>") else ">"
+    return tag.rstrip()[: -len(closing)] + f' {name}="{escaped}"' + closing
 
 
 def layout_number(value: object, fallback: float, lower: float, upper: float) -> float:
