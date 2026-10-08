@@ -154,6 +154,25 @@ class TemplateRenderingTests(unittest.TestCase):
 
         self.assertIn("ANGEL SISTEMS", html)
 
+    def test_login_keeps_authentication_form_without_workspace_navigation(self) -> None:
+        html = app.env.get_template("login.html").render(
+            public=True,
+            user=None,
+            request_path="/login",
+            asset_version="test",
+            next="/entregas",
+            error="Credenciales incorrectas",
+        )
+
+        self.assertIn("Software de operaciones", html)
+        self.assertIn("C.I. Green Global Group", html)
+        self.assertIn('method="post" action="/login"', html)
+        self.assertIn('name="next" value="/entregas"', html)
+        self.assertIn('name="username" autocomplete="username"', html)
+        self.assertIn('name="password" type="password"', html)
+        self.assertIn('role="alert">Credenciales incorrectas', html)
+        self.assertNotIn('class="sidebar"', html)
+
 
 if __name__ == "__main__":
     unittest.main()

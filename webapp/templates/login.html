@@ -5,47 +5,45 @@
 {% block content %}
 <section class="login-shell" aria-labelledby="login-title">
   <div class="login-story">
-    <div class="login-story-brand">
-      <span class="login-brand-mark"><img src="/static/generated/logo.png" alt="Green Global Group"></span>
-      <span><strong>Green Global Group</strong><small>Operación de recepción</small></span>
-    </div>
-    <p class="login-kicker">Control documental y trazabilidad</p>
-    <h1 id="login-title">Recepción de metales</h1>
-    <p class="login-story-copy">Gestiona entregas, análisis, liquidaciones, regalías y certificados desde una sola operación protegida.</p>
+    <p class="login-kicker">Control y auditoría de procesos</p>
+    <h1 id="login-title">Software de operaciones</h1>
 
     <div class="login-route" aria-hidden="true">
       <span class="login-route-line"><i></i></span>
-      <span class="login-route-stop active"><i></i><small>Recepción</small></span>
+      <span class="login-route-stop active"><i></i><small>Registro</small></span>
       <span class="login-route-stop"><i></i><small>Análisis</small></span>
       <span class="login-route-stop"><i></i><small>Liquidación</small></span>
       <span class="login-route-stop"><i></i><small>Archivo</small></span>
     </div>
 
     <div class="login-capabilities" aria-label="Capacidades del sistema">
-      <div><strong>Documentos</strong><span>Planillas y PDF coordinados</span></div>
-      <div><strong>Trazabilidad</strong><span>Entregas y boletines históricos</span></div>
-      <div><strong>Respaldo</strong><span>Persistencia externa verificada</span></div>
+      <div>{{ icons.icon("file-text") }}<div><strong>Documentos</strong><span>Planillas y PDF coordinados</span></div></div>
+      <div>{{ icons.icon("workflow") }}<div><strong>Trazabilidad</strong><span>Entregas y boletines históricos</span></div></div>
+      <div>{{ icons.icon("shield-check") }}<div><strong>Respaldo</strong><span>Persistencia externa verificada</span></div></div>
     </div>
   </div>
 
   <div class="login-access-column">
     <div class="login-panel">
-      <div class="login-security-mark">{{ icons.icon("badge-check") }}</div>
+      <div class="login-panel-brand">
+        <span class="login-brand-mark"><img src="/static/generated/logo.png" alt="Logo de Green Global Group"></span>
+        <strong>C.I. Green Global Group</strong>
+      </div>
       <p class="eyebrow">Sesión operativa</p>
-      <h2>Ingresa al sistema</h2>
+      <h2>Acceso al sistema</h2>
       <p class="login-welcome">Usa tus credenciales para abrir el espacio de trabajo.</p>
       <form class="form-stack" method="post" action="/login" aria-label="Formulario de acceso">
         <input type="hidden" name="next" value="{{ next }}">
-        <label><span>Usuario</span><input name="username" autocomplete="username" required autofocus placeholder="Ingresa tu usuario"></label>
-        <label><span>Contraseña</span><input name="password" type="password" autocomplete="current-password" required placeholder="Ingresa tu contraseña"></label>
+        <label><span>Usuario</span><span class="login-input-wrap">{{ icons.icon("user") }}<input name="username" autocomplete="username" required autofocus placeholder="Usuario o ID corporativo"></span></label>
+        <label><span>Contraseña</span><span class="login-input-wrap">{{ icons.icon("lock") }}<input name="password" type="password" autocomplete="current-password" required placeholder="Ingresa tu contraseña"></span></label>
         {% if error %}<p class="form-error" role="alert">{{ error }}</p>{% endif %}
         <button class="button login-submit" type="submit">
           <span>Ingresar al panel</span>{{ icons.icon("arrow-right") }}
         </button>
       </form>
       <div class="login-panel-footer">
-        <span>{{ icons.icon("database") }} Datos protegidos</span>
-        <span>Acceso restringido</span>
+        <span>{{ icons.icon("lock") }} Datos protegidos</span>
+        <span>{{ icons.icon("alert-triangle") }} Acceso restringido</span>
       </div>
     </div>
     <p class="login-signature">Desarrollado por <strong>ANGEL SISTEMS</strong></p>
