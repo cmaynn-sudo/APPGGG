@@ -60,15 +60,31 @@ body {
 }
 
 body.public-body {
-  animation: login-background-drift 24s ease-in-out infinite alternate;
   background-color: #082c4d;
-  background-image:
-    linear-gradient(90deg, rgba(4, 25, 45, 0.04), rgba(4, 25, 45, 0.18)),
-    url("/static/generated/login-logistics-background.png");
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
   display: block;
+  isolation: isolate;
+  position: relative;
+}
+
+body.public-body::before {
+  animation: login-background-drift 28s ease-in-out infinite alternate;
+  background: #082c4d url("/static/generated/login-logistics-background.png") center / cover no-repeat;
+  content: "";
+  inset: -12px;
+  pointer-events: none;
+  position: fixed;
+  z-index: -2;
+}
+
+body.public-body::after {
+  background:
+    linear-gradient(90deg, rgba(2, 17, 32, 0.22), rgba(2, 17, 32, 0.44) 46%, rgba(2, 17, 32, 0.12)),
+    linear-gradient(0deg, rgba(2, 17, 32, 0.72), rgba(2, 17, 32, 0.1) 46%, transparent 72%);
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: fixed;
+  z-index: -1;
 }
 
 .public-body .public-page {
@@ -1882,11 +1898,20 @@ html[data-theme="dark"] .summary-icon.kpi-final {
 }
 
 .login-story {
-  align-self: end;
-  animation: login-story-enter 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
-  margin-bottom: 48px;
+  align-self: center;
+  margin: 0;
   max-width: 1050px;
   padding-left: 24px;
+  position: relative;
+  z-index: 1;
+}
+
+.login-story-heading > * {
+  animation: login-content-enter 900ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+
+.login-story-heading h1 {
+  animation-delay: 120ms;
 }
 
 .login-panel-brand {
@@ -1925,11 +1950,12 @@ html[data-theme="dark"] .summary-icon.kpi-final {
 }
 
 .login-kicker {
-  color: #83d8cc;
+  color: #acf0e5;
   font-size: 16px;
   font-weight: 700;
   margin: 0 0 20px;
   text-transform: uppercase;
+  text-shadow: 0 2px 12px rgba(0, 13, 26, 0.65);
 }
 
 .login-story h1 {
@@ -1939,18 +1965,20 @@ html[data-theme="dark"] .summary-icon.kpi-final {
   line-height: 1.15;
   margin: 0;
   max-width: 1050px;
+  text-shadow: 0 3px 24px rgba(0, 13, 26, 0.42);
 }
 
 .login-route {
+  animation: login-content-enter 900ms 260ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
   display: grid;
   grid-template-columns: repeat(4, minmax(76px, 1fr));
-  margin-top: 144px;
+  margin-top: 112px;
   max-width: 900px;
   position: relative;
 }
 
 .login-route-line {
-  background: rgba(131, 216, 204, 0.66);
+  background: rgba(131, 216, 204, 0.38);
   height: 3px;
   left: 9px;
   overflow: hidden;
@@ -1960,24 +1988,25 @@ html[data-theme="dark"] .summary-icon.kpi-final {
 }
 
 .login-route-line i {
-  animation: login-route-progress 5.5s ease-in-out infinite;
-  background: #8ce2d6;
+  animation: login-route-progress 8s linear infinite;
+  background: linear-gradient(90deg, transparent, #c0fff3 50%, transparent);
   display: block;
   height: 100%;
-  transform-origin: left center;
-  width: 100%;
+  width: 25%;
 }
 
 .login-route-stop {
-  color: rgba(255, 255, 255, 0.88);
+  color: #ffffff;
   display: grid;
   gap: 14px;
   justify-items: start;
   position: relative;
   z-index: 1;
+  text-shadow: 0 2px 10px rgba(0, 13, 26, 0.8);
 }
 
 .login-route-stop i {
+  animation: login-stage-glow 8s ease-in-out infinite;
   background: #0d416a;
   border: 2px solid #a4e5db;
   border-radius: 50%;
@@ -1985,15 +2014,13 @@ html[data-theme="dark"] .summary-icon.kpi-final {
   width: 21px;
 }
 
-.login-route-stop.active i {
-  animation: login-stop-pulse 2.2s ease-in-out infinite;
-  background: #8ce2d6;
-  border-color: #ffffff;
-}
+.login-route-stop:nth-of-type(3) i { animation-delay: -6s; }
+.login-route-stop:nth-of-type(4) i { animation-delay: -4s; }
+.login-route-stop:nth-of-type(5) i { animation-delay: -2s; }
 
 .login-route-stop small {
   font-size: 14px;
-  font-weight: 400;
+  font-weight: 600;
   text-transform: uppercase;
 }
 
@@ -2002,18 +2029,23 @@ html[data-theme="dark"] .summary-icon.kpi-final {
   display: grid;
   gap: 22px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 56px;
+  margin-top: 40px;
   padding-top: 28px;
+  text-shadow: 0 2px 12px rgba(0, 13, 26, 0.85);
 }
 
 .login-capabilities > div {
+  animation: login-content-enter 900ms 380ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
   display: flex;
   gap: 10px;
   min-width: 0;
 }
 
+.login-capabilities > div:nth-child(2) { animation-delay: 460ms; }
+.login-capabilities > div:nth-child(3) { animation-delay: 540ms; }
+
 .login-capabilities .action-icon-svg {
-  color: rgba(255, 255, 255, 0.8);
+  color: #b5eee3;
   flex: 0 0 22px;
   height: 25px;
   width: 22px;
@@ -2029,14 +2061,14 @@ html[data-theme="dark"] .summary-icon.kpi-final {
 }
 
 .login-capabilities span {
-  color: rgba(255, 255, 255, 0.74);
+  color: #e4eef5;
   font-size: 13px;
   line-height: 1.45;
   margin-top: 5px;
 }
 
 .login-access-column {
-  animation: login-panel-enter 760ms 100ms cubic-bezier(0.2, 0.75, 0.2, 1) both;
+  animation: login-panel-enter 1000ms 140ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
   justify-self: end;
   max-width: 640px;
   width: 100%;
@@ -2045,7 +2077,7 @@ html[data-theme="dark"] .summary-icon.kpi-final {
 .login-panel {
   -webkit-backdrop-filter: blur(16px);
   backdrop-filter: blur(16px);
-  background: rgba(196, 211, 225, 0.93);
+  background: rgba(243, 248, 252, 0.95);
   border: 1px solid rgba(255, 255, 255, 0.85);
   border-radius: 16px;
   box-shadow: 0 28px 70px rgba(0, 16, 34, 0.38);
@@ -2074,11 +2106,12 @@ html[data-theme="dark"] .summary-icon.kpi-final {
 }
 
 .login-signature {
-  color: rgba(255, 255, 255, 0.72);
+  color: #d8e5ee;
   font-size: 11px;
   margin: 20px 0 0;
   text-align: center;
   text-transform: uppercase;
+  text-shadow: 0 2px 10px rgba(0, 13, 26, 0.8);
 }
 
 .login-signature strong {
@@ -2112,6 +2145,11 @@ html[data-theme="dark"] .summary-icon.kpi-final {
   top: 50%;
   transform: translateY(-50%);
   width: 21px;
+  transition: color 180ms ease;
+}
+
+.login-input-wrap:focus-within .action-icon-svg {
+  color: #08766e;
 }
 
 .login-panel input {
@@ -2124,6 +2162,7 @@ html[data-theme="dark"] .summary-icon.kpi-final {
   min-height: 58px;
   padding: 15px 16px 15px 49px;
   width: 100%;
+  transition: background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
 }
 
 .login-panel input::placeholder {
@@ -2150,6 +2189,7 @@ html[data-theme="dark"] .summary-icon.kpi-final {
   min-height: 61px;
   padding: 15px 20px;
   width: 100%;
+  transition: background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 
 .login-submit:hover {
@@ -2162,6 +2202,16 @@ html[data-theme="dark"] .summary-icon.kpi-final {
 .login-submit .action-icon-svg {
   height: 22px;
   width: 22px;
+  transition: transform 180ms ease;
+}
+
+.login-submit:hover .action-icon-svg,
+.login-submit:focus-visible .action-icon-svg {
+  transform: translateX(4px);
+}
+
+.login-submit:active {
+  transform: translateY(0);
 }
 
 .login-panel .form-error {
@@ -2196,12 +2246,12 @@ html[data-theme="dark"] .summary-icon.kpi-final {
 
 @media (min-width: 1600px) and (min-height: 1080px) {
   .login-shell { gap: 80px; padding-top: 80px; padding-bottom: 80px; }
-  .login-story { margin-bottom: 86px; padding-left: 40px; }
+  .login-story { padding-left: 40px; }
   .login-story h1 { font-size: 84px; }
   .login-kicker { font-size: 20px; }
-  .login-route { margin-top: 208px; }
+  .login-route { margin-top: 160px; }
   .login-route-stop small { font-size: 18px; }
-  .login-capabilities { margin-top: 90px; padding-top: 36px; }
+  .login-capabilities { margin-top: 56px; padding-top: 36px; }
   .login-capabilities strong { font-size: 19px; }
   .login-capabilities span { font-size: 16px; }
   .login-access-column { max-width: 660px; }
@@ -2221,37 +2271,36 @@ html[data-theme="dark"] .summary-icon.kpi-final {
   .login-signature { font-size: 16px; margin-top: 24px; }
 }
 
-@keyframes login-story-enter {
-  from { opacity: 0; transform: translateX(-24px); }
-  to { opacity: 1; transform: translateX(0); }
+@keyframes login-content-enter {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
 }
 
 @keyframes login-background-drift {
-  from { background-position: 48% center; }
-  to { background-position: 52% center; }
+  from { transform: translate3d(-4px, -3px, 0) scale(1.025); }
+  to { transform: translate3d(4px, 3px, 0) scale(1.055); }
 }
 
 @keyframes login-panel-enter {
-  from { opacity: 0; transform: translateY(24px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(20px) scale(0.985); }
+  to { opacity: 1; transform: none; }
 }
 
 @keyframes login-route-progress {
-  0% { transform: scaleX(0); }
-  48%, 72% { transform: scaleX(1); }
-  100% { transform: scaleX(0); transform-origin: right center; }
+  from { transform: translateX(-100%); }
+  to { transform: translateX(400%); }
 }
 
-@keyframes login-stop-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(140, 226, 214, 0); }
-  50% { box-shadow: 0 0 0 7px rgba(140, 226, 214, 0.18); }
+@keyframes login-stage-glow {
+  0%, 18% { background: #a3eee0; border-color: #e8fffa; box-shadow: 0 0 0 5px rgba(163, 238, 224, 0.12); }
+  30%, 100% { background: #0d416a; border-color: #a4e5db; box-shadow: 0 0 0 0 rgba(163, 238, 224, 0); }
 }
 
 @media (min-width: 981px) and (max-width: 1350px) {
   .login-shell { gap: 36px; padding: 44px 4%; }
   .login-story { padding-left: 0; }
   .login-story h1 { font-size: 44px; }
-  .login-route { margin-top: 120px; }
+  .login-route { margin-top: 88px; }
   .login-capabilities { gap: 14px; }
   .login-capabilities span { font-size: 11px; }
   .login-panel { padding: 32px 28px 28px; }
@@ -2261,7 +2310,7 @@ html[data-theme="dark"] .summary-icon.kpi-final {
 
 @media (min-width: 981px) and (max-height: 850px) {
   .login-shell { gap: 40px; padding-top: 32px; padding-bottom: 32px; }
-  .login-story { margin-bottom: 24px; }
+  .login-story { margin-bottom: 0; }
   .login-route { margin-top: 80px; }
   .login-capabilities { margin-top: 36px; padding-top: 20px; }
   .login-access-column { max-width: 520px; }
@@ -2278,7 +2327,7 @@ html[data-theme="dark"] .summary-icon.kpi-final {
 
 @media (min-width: 981px) and (max-height: 680px) {
   .login-shell { padding-top: 16px; padding-bottom: 16px; }
-  .login-story { margin-bottom: 16px; }
+  .login-story { margin-bottom: 0; }
   .login-route { margin-top: 56px; }
   .login-capabilities { margin-top: 28px; padding-top: 16px; }
   .login-panel { padding-top: 22px; padding-bottom: 20px; }
@@ -3289,7 +3338,7 @@ html[data-theme="dark"] .layout-canvas {
     padding: 12px;
   }
 
-  body.public-body {
+  body.public-body::before {
     background-position: 38% center;
   }
 
@@ -3543,15 +3592,21 @@ html[data-theme="dark"] .layout-canvas {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body.public-body,
-  .login-story,
-  .login-access-column,
-  .login-route-line i,
-  .login-route-stop.active i {
+  body.public-body::before,
+  .login-shell *,
+  .login-shell *::before,
+  .login-shell *::after {
     animation: none !important;
+    transition: none !important;
   }
 
-  .login-submit {
-    transition: none;
+  body.public-body::before {
+    transform: none;
+  }
+
+  .login-submit:hover,
+  .login-submit:hover .action-icon-svg,
+  .login-submit:focus-visible .action-icon-svg {
+    transform: none;
   }
 }
