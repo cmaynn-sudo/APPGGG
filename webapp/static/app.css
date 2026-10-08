@@ -529,6 +529,7 @@ h2 {
 
 input,
 select,
+textarea,
 button {
   font: inherit;
 }
@@ -1917,9 +1918,9 @@ html[data-theme="dark"] .summary-icon.kpi-final {
 
 .login-panel-brand strong {
   color: #13213b;
-  font-family: "Times New Roman", Georgia, serif;
-  font-size: 29px;
-  font-weight: 400;
+  font-family: inherit;
+  font-size: 24px;
+  font-weight: 600;
   line-height: 1.15;
 }
 
@@ -2208,7 +2209,7 @@ html[data-theme="dark"] .summary-icon.kpi-final {
   .login-panel-brand { margin-bottom: 40px; min-height: 85px; }
   .login-brand-mark { flex-basis: 85px; height: 78px; width: 85px; }
   .login-brand-mark img { left: -78px; top: -55px; width: 240px; }
-  .login-panel-brand strong { font-size: 38px; }
+  .login-panel-brand strong { font-size: 30px; }
   .login-panel h2 { font-size: 46px; }
   .login-panel .eyebrow { font-size: 20px; }
   .login-welcome { font-size: 22px; }
@@ -2254,7 +2255,7 @@ html[data-theme="dark"] .summary-icon.kpi-final {
   .login-capabilities { gap: 14px; }
   .login-capabilities span { font-size: 11px; }
   .login-panel { padding: 32px 28px 28px; }
-  .login-panel-brand strong { font-size: 27px; }
+  .login-panel-brand strong { font-size: 24px; }
   .login-panel-footer { font-size: 12px; }
 }
 
@@ -3325,7 +3326,7 @@ html[data-theme="dark"] .layout-canvas {
   }
 
   .login-panel-brand strong {
-    font-size: 23px;
+    font-size: 20px;
   }
 
   .login-kicker {
