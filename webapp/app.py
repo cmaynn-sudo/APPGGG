@@ -89,6 +89,9 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 self.render_leyes()
             elif path == "/boletines":
                 self.render_boletines()
+            elif path.startswith("/boletines/") and path.endswith("/facturacion.txt"):
+                entrega_id = unquote(path.removeprefix("/boletines/").removesuffix("/facturacion.txt"))
+                self.download_facturacion(entrega_id)
             elif path == "/certificados":
                 self.render_certificados(query)
             elif path == "/sociedades":
@@ -357,6 +360,18 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 "months": core.MESES_ORDEN,
             },
         )
+
+    def download_facturacion(self, entrega_id: str) -> None:
+        entrega = data_store.get_entrega(entrega_id) if entrega_id else None
+        if not entrega:
+            self.send_error(HTTPStatus.NOT_FOUND, "Entrega no encontrada")
+            return
+        boletines = data_store.boletines_for_entrega(entrega)
+        if not boletines:
+            self.send_error(HTTPStatus.NOT_FOUND, "Esta entrega no tiene boletines listos")
+            return
+        body = calculations.facturacion_text(boletines).encode("utf-8-sig")
+        self.send_bytes(body, "text/plain; charset=utf-8", filename="FACTURACION.txt", attachment=True)
 
     def render_certificados(self, query: dict) -> None:
         period = "annual" if query.get("period", [""])[0] == "annual" else "monthly"

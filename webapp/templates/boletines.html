@@ -49,7 +49,12 @@
 <section class="panel section-gap">
   <div class="panel-title">
     <h2>Boletines listos</h2>
-    <span>{{ boletines|length }} registro(s)</span>
+    <div class="header-actions">
+      <span>{{ boletines|length }} registro(s)</span>
+      {% if boletines %}
+      <a class="icon-action" href="/boletines/{{ entrega.id }}/facturacion.txt" download="FACTURACION.txt" data-tooltip="Descargar resumen de facturación de esta entrega (TXT)" data-tooltip-align="end" aria-label="Descargar resumen de facturación de esta entrega (TXT)">{{ icons.icon("file-text") }}</a>
+      {% endif %}
+    </div>
   </div>
   <table class="data-table">
     <thead>

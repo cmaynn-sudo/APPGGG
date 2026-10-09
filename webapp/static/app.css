@@ -1882,6 +1882,17 @@ html[data-theme="dark"] .summary-icon.kpi-final {
   transform: translateX(-50%) translateY(0);
 }
 
+[data-tooltip-align="end"]::after {
+  left: auto;
+  right: 0;
+  transform: translateY(4px);
+}
+
+[data-tooltip-align="end"]:hover::after,
+[data-tooltip-align="end"]:focus-visible::after {
+  transform: translateY(0);
+}
+
 .login-shell {
   align-items: center;
   color: #ffffff;

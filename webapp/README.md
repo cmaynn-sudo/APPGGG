@@ -52,6 +52,14 @@ REDONDEAR(((OZ AU / 31,10347) * dólar) * precio_negociación; 0)
 
 Puedes escribir porcentajes con coma o punto decimal, por ejemplo `97,5`, `97.5`, `2,5` o `2.5`.
 
+En `Boletines`, el botón con el icono de archivo junto al contador de registros descarga
+`FACTURACION.txt` con un bloque por cada boletín listo de la entrega seleccionada.
+Incluye peso final, finos AU/AG, subtotal de metales, suma de regalías y precio del
+gramo de oro. `Valor total` corresponde a `Valor a pagar`, después de la retención
+y antes de descontar las regalías. El TXT conserva las frases de facturación,
+usa dos decimales con formato colombiano y se genera en UTF-8 con BOM y saltos
+de línea de Windows para mantener las tildes en editores de texto.
+
 ## Almacenamiento persistente para Render Free
 
 Render Free no conserva archivos locales después de reinicios, reposos o deploys. La opción recomendada para esta aplicación es Cloudflare R2, porque está diseñada para archivos y usa una API compatible con S3.

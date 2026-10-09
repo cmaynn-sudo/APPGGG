@@ -215,6 +215,9 @@ def boletin_context(
             "retencion_porcentaje": fmt_percent(retencion_rate),
             "peso_ini_value": peso_ini,
             "peso_fin_value": peso_fin,
+            "fino_oro_value": fino_oro,
+            "fino_plata_value": fino_plata,
+            "precio_oro_cop_value": precio_oro,
             "valor_total_metales_value": valor_total,
             "valor_a_pagar_value": valor_pagar,
             "regalia_oro_total_value": regalia_oro_total,
@@ -243,6 +246,41 @@ def boletin_context(
         }
     )
     return data
+
+
+def facturacion_text(boletines: list[dict[str, Any]]) -> str:
+    blocks = []
+    for boletin in boletines:
+        codigo = boletin.get("barra") or boletin.get("codigo", "")
+        sociedad = boletin.get("sociedad") or boletin.get("proveedor", "")
+        peso_final = locale_number(boletin["peso_fin_value"])
+        oro = locale_number(boletin["fino_oro_value"])
+        plata = locale_number(boletin["fino_plata_value"])
+        regalias = boletin["regalia_oro_total_value"] + boletin["regalia_plata_total_value"]
+        blocks.append(
+            "\r\n".join(
+                [
+                    "C.I. GREEN GLOBAL GROUP S.A.S.",
+                    sociedad,
+                    codigo,
+                    f"Peso final: {peso_final}",
+                    f"Gramos oro: {oro}",
+                    f"Gramos plata: {plata}",
+                    f"Subtotal: {locale_number(boletin['valor_total_metales_value'])}",
+                    f"Regalias: {locale_number(regalias)}",
+                    f"Valor total: {locale_number(boletin['valor_a_pagar_value'])}",
+                    "",
+                    "Valor de negociación por gramo:  $"
+                    f"{locale_number(boletin['precio_oro_cop_value'])}",
+                    "",
+                    f"ORO EN DESUSO BOLETIN #{codigo} FINAL: {peso_final} GR",
+                    f"VTA JOYERIA ORO EN DESUSO PUROS AU:{oro} GR AG:{plata} GR "
+                    f"FINAL:{peso_final} GR BOLETIN #{codigo}",
+                    "------------------------------------",
+                ]
+            )
+        )
+    return "\r\n\r\n\r\n".join(blocks) + ("\r\n" if blocks else "")
 
 
 def certificado_context(sociedad: str, nit: str, boletines: list[dict[str, Any]], current: date | None = None) -> dict[str, Any]:
