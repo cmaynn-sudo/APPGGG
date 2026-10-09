@@ -5,6 +5,7 @@ import html as html_lib
 import io
 import math
 import re
+from datetime import date
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urlparse
@@ -22,6 +23,21 @@ env = Environment(
 )
 
 
+def template_sample_context(slug: str) -> dict:
+    data = dict(SAMPLE_CONTEXT)
+    if slug == "boletin":
+        import calculations
+
+        data.update(calculations.boletin_context(
+            data,
+            {key: data[key] for key in ("dolar", "oz_au", "oz_ag")},
+            {"au": data["regalia_au"], "ag": data["regalia_ag"], "mes": data["mes"]},
+            {key: data[key] for key in ("precio_negociacion_porcentaje", "retencion_porcentaje")},
+            current=date.fromisoformat(data["fecha"]),
+        ))
+    return data
+
+
 def render_print_html(
     slug: str,
     context: dict | None = None,
@@ -31,10 +47,10 @@ def render_print_html(
     page_margin: str | None = None,
 ) -> str:
     spec = TEMPLATE_BY_SLUG[slug]
-    data = dict(SAMPLE_CONTEXT)
+    data = template_sample_context(slug)
     if context:
         data.update(context)
-    body = env.get_template(spec.render_template_name).render(**data)
+    body = prepare_template_layout(env.get_template(spec.render_template_name).render(**data))
     import data_store
 
     layout = data_store.get_template_layout(slug)
@@ -76,7 +92,7 @@ def template_layout_css(slug: str, layout: dict | None = None) -> str:
     rules = []
     for element_id, settings in elements.items():
         if not isinstance(element_id, str) or not re.fullmatch(
-            r"(?:cell-[A-Z]{1,3}\d+|image-[a-z0-9-]+|block-[a-z0-9-]+)",
+            r"(?:cell-[A-Z]{1,3}\d+|image-[a-z0-9-]+|block-[a-z0-9-]+|(?:text|char)-[A-Za-z0-9-]+)",
             element_id,
         ):
             continue
@@ -194,12 +210,139 @@ def apply_template_content_overrides(
             content_type = str(metadata.get("content_type") or "image/png")
             encoded = base64.b64encode(path.read_bytes()).decode("ascii")
             asset_sources[element_id] = f"data:{content_type};base64,{encoded}"
-    if not text_overrides and not asset_sources:
-        return body
-    parser = TemplateOverrideParser(text_overrides, asset_sources)
+    if text_overrides or asset_sources:
+        parser = TemplateOverrideParser(text_overrides, asset_sources)
+        parser.feed(body)
+        parser.close()
+        body = parser.rendered
+    character_parents = set()
+    for element_id in elements:
+        match = re.fullmatch(r"char-(.+)-(\d+)", element_id)
+        if match:
+            character_parents.add(match.group(1))
+    if character_parents:
+        characters = CharacterLayoutParser(character_parents)
+        characters.feed(body)
+        characters.close()
+        parser = TemplateOverrideParser(
+            {key: value for key, value in text_overrides.items() if key.startswith("char-")},
+            {},
+        )
+        parser.feed(characters.rendered)
+        parser.close()
+        body = parser.rendered
+    return body
+
+
+def prepare_template_layout(body: str) -> str:
+    parser = LayoutTextParser()
     parser.feed(body)
     parser.close()
     return parser.rendered
+
+
+class LayoutTextParser(HTMLParser):
+    VOID_ELEMENTS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
+    SKIP_ELEMENTS = {"script", "style", "svg", "textarea"}
+    TEXT_ELEMENTS = {"span", "strong", "b", "em", "i", "p", "dt", "dd", "td", "th", "h1", "h2", "h3", "small"}
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+        self.stack: list[dict] = []
+        self.root_children: dict[str, int] = {}
+        self.offsets: dict[str, int] = {}
+        self.annotate_empty = True
+
+    @property
+    def rendered(self) -> str:
+        return "".join(self.parts)
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self.parts.append(self.get_starttag_text())
+        parent = self.stack[-1] if self.stack else None
+        siblings = parent["children"] if parent else self.root_children
+        siblings[tag] = siblings.get(tag, 0) + 1
+        anchor = parent["id"] or parent["path"] if parent else "document"
+        if tag not in self.VOID_ELEMENTS:
+            self.stack.append({
+                "tag": tag,
+                "id": dict(attrs).get("data-layout-id") or "",
+                "path": f"{anchor}-{tag}{siblings[tag]}",
+                "children": {},
+                "texts": 0,
+            })
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self.parts.append(self.get_starttag_text())
+
+    def handle_endtag(self, tag: str) -> None:
+        if self.stack:
+            node = self.stack[-1]
+            if (self.annotate_empty and node["tag"] == tag and tag in self.TEXT_ELEMENTS and not node["id"]
+                    and not node["children"] and not node["texts"]):
+                self.parts.append(
+                    f'<span data-layout-id="text-{node["path"]}-1" '
+                    'data-layout-label="Texto" data-layout-text></span>'
+                )
+        self.parts.append(f"</{tag}>")
+        for index in range(len(self.stack) - 1, -1, -1):
+            if self.stack[index]["tag"] == tag:
+                del self.stack[index:]
+                break
+
+    def handle_data(self, data: str) -> None:
+        if any(node["tag"] in self.SKIP_ELEMENTS for node in self.stack):
+            self.parts.append(data)
+            return
+        text = html_lib.escape(data)
+        if data.strip() and self.stack and not self.stack[-1]["id"]:
+            node = self.stack[-1]
+            node["texts"] += 1
+            element_id = f'text-{node["path"]}-{node["texts"]}'
+            text = f'<span data-layout-id="{element_id}" data-layout-label="Texto" data-layout-text>{text}</span>'
+        self.parts.append(text)
+
+    def handle_comment(self, data: str) -> None:
+        self.parts.append(f"<!--{data}-->")
+
+
+class CharacterLayoutParser(LayoutTextParser):
+    def __init__(self, parents: set[str]) -> None:
+        super().__init__()
+        self.parents = parents
+        self.annotate_empty = False
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "br" and self.stack and self.stack[-1]["id"] in self.parents:
+            parent = self.stack[-1]["id"]
+            self.offsets[parent] = self.offsets.get(parent, 0) + 1
+        super().handle_starttag(tag, attrs)
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag == "br" and self.stack and self.stack[-1]["id"] in self.parents:
+            parent = self.stack[-1]["id"]
+            self.offsets[parent] = self.offsets.get(parent, 0) + 1
+        super().handle_startendtag(tag, attrs)
+
+    def handle_data(self, data: str) -> None:
+        parent = self.stack[-1]["id"] if self.stack else ""
+        if parent not in self.parents:
+            self.parts.append(html_lib.escape(data))
+            return
+        for word in re.split(r"(\s+)", data):
+            grouped = bool(word and not word.isspace())
+            if grouped:
+                self.parts.append("<span data-layout-word>")
+            for character in word:
+                index = self.offsets.get(parent, 0)
+                self.offsets[parent] = index + 1
+                self.parts.append(
+                    f'<span data-layout-id="char-{parent}-{index}" data-layout-character '
+                    f'data-layout-parent="{parent}">{html_lib.escape(character)}</span>'
+                )
+            if grouped:
+                self.parts.append("</span>")
 
 
 class TemplateOverrideParser(HTMLParser):
@@ -305,7 +448,7 @@ def save_print_html(slug: str, output_path: Path, context: dict | None = None) -
 
 def render_print_pdf(slug: str, context: dict | None = None) -> bytes:
     spec = TEMPLATE_BY_SLUG[slug]
-    data = dict(SAMPLE_CONTEXT)
+    data = template_sample_context(slug)
     if context:
         data.update(context)
     try:

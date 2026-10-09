@@ -429,6 +429,7 @@ class RecepcionHandler(BaseHTTPRequestHandler):
         if slug not in TEMPLATE_BY_SLUG:
             slug = "recibo-metales"
         spec = TEMPLATE_BY_SLUG[slug]
+        sample_context = renderer.template_sample_context(slug)
         layout = data_store.get_template_layout(slug)
         assets = data_store.get_template_assets(slug)
         asset_urls = {
@@ -444,11 +445,14 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 "templates": [*TEMPLATES, CERTIFICADO_ANUAL],
                 "template": spec,
                 "generated_template": spec.render_template_name,
+                "preview_html": renderer.prepare_template_layout(
+                    env.get_template(spec.render_template_name).render(**sample_context)
+                ),
                 "layout": layout,
                 "template_assets": asset_urls,
                 "layout_css": renderer.template_layout_css(slug, layout),
                 "message": query.get("msg", [""])[0],
-                **SAMPLE_CONTEXT,
+                **sample_context,
             },
         )
 
@@ -529,12 +533,21 @@ class RecepcionHandler(BaseHTTPRequestHandler):
         if not spec:
             self.send_error(HTTPStatus.NOT_FOUND, "Plantilla no encontrada")
             return
+        sample_context = renderer.template_sample_context(slug)
+        layout = data_store.get_template_layout(slug)
+        preview_html = renderer.prepare_template_layout(
+            env.get_template(spec.render_template_name).render(**sample_context)
+        )
         self.render(
             "template_preview.html",
             {
                 "template": spec,
                 "generated_template": spec.render_template_name,
-                **SAMPLE_CONTEXT,
+                "preview_html": renderer.apply_template_content_overrides(
+                    preview_html, layout, data_store.get_template_assets(slug)
+                ),
+                "layout_css": renderer.template_layout_css(slug, layout),
+                **sample_context,
             },
         )
 

@@ -37,7 +37,7 @@ DASHBOARD_OVERRIDE_NUMBER_FIELDS = (
     "finos_oro",
     "finos_plata",
 )
-LAYOUT_ELEMENT_ID_RE = re.compile(r"^(?:cell-[A-Z]{1,3}\d+|image-[a-z0-9-]+|block-[a-z0-9-]+)$")
+LAYOUT_ELEMENT_ID_RE = re.compile(r"^(?:cell-[A-Z]{1,3}\d+|image-[a-z0-9-]+|block-[a-z0-9-]+|(?:text|char)-[A-Za-z0-9-]+)$")
 LAYOUT_ALIGNMENTS = {"", "left", "center", "right"}
 
 
@@ -259,7 +259,7 @@ def update_template_layout(slug: str, raw_layout: str) -> dict[str, Any]:
         raise ValueError("Los ajustes visuales no tienen un formato válido.") from exc
     if not isinstance(submitted, dict):
         raise ValueError("Los ajustes visuales no tienen un formato válido.")
-    if len(submitted) > 400:
+    if len(submitted) > 4000:
         raise ValueError("La plantilla contiene demasiados ajustes individuales.")
 
     elements: dict[str, dict[str, Any]] = {}

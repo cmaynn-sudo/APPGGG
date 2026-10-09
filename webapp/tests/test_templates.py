@@ -154,6 +154,22 @@ class TemplateRenderingTests(unittest.TestCase):
 
         self.assertIn("ANGEL SISTEMS", html)
 
+    def test_bulletin_royalties_keep_each_metal_with_its_heading_and_values(self) -> None:
+        html = app.env.get_template("manual/boletin.html").render(
+            **{**app.SAMPLE_CONTEXT, "regalia_au": "$ 100", "regalia_ag": "$ 200",
+               "regalia_oro_total": "$ 1.000", "regalia_plata_total": "$ 2.000"},
+        )
+        gold = html.split('data-layout-id="block-royalty-gold"', 1)[1].split('</div>', 1)[0]
+        silver = html.split('data-layout-id="block-royalty-silver"', 1)[1].split('</div>', 1)[0]
+
+        self.assertIn("ORO", gold)
+        self.assertIn("$ 100", gold)
+        self.assertIn("$ 1.000", gold)
+        self.assertNotIn("$ 2.000", gold)
+        self.assertIn("PLATA", silver)
+        self.assertIn("$ 200", silver)
+        self.assertIn("$ 2.000", silver)
+
     def test_login_keeps_authentication_form_without_workspace_navigation(self) -> None:
         html = app.env.get_template("login.html").render(
             public=True,

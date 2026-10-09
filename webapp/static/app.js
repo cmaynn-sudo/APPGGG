@@ -146,6 +146,7 @@
     const imageInput = layoutEditor.querySelector("[data-layout-image-input]");
     const imageStatus = layoutEditor.querySelector("[data-layout-image-status]");
     const imageRemove = layoutEditor.querySelector("[data-layout-image-remove]");
+    const modeControls = document.querySelectorAll("[data-layout-mode]");
     const defaults = {
       x: 0,
       y: 0,
@@ -162,6 +163,8 @@
     let assets = {};
     let selectedElement = null;
     let dragState = null;
+    let characterMode = false;
+    const textEditable = new WeakSet();
     const originalMarkup = new WeakMap();
     const originalText = new WeakMap();
     const originalSources = new WeakMap();
@@ -260,7 +263,56 @@
 
     function isTextEditable(element) {
       return element.tagName !== "IMG"
-        && Array.from(element.children).every((child) => child.tagName === "BR");
+        && (textEditable.has(element)
+          || Array.from(element.children).every((child) => child.tagName === "BR"));
+    }
+
+    function elementText(element) {
+      return Array.from(element.childNodes).map((node) => {
+        if (node.nodeType === Node.TEXT_NODE) return node.textContent;
+        if (node.nodeName === "BR") return "\n";
+        return elementText(node);
+      }).join("");
+    }
+
+    function hasCharacterSettings(elementId) {
+      return Object.keys(state).some((key) => key.startsWith(`char-${elementId}-`));
+    }
+
+    function renderCharacters(element) {
+      if (element.hasAttribute("data-layout-character") || !isTextEditable(element)) return;
+      const parentId = element.dataset.layoutId;
+      if (!characterMode && !hasCharacterSettings(parentId)) return;
+      const text = elementText(element);
+      const fragment = document.createDocumentFragment();
+      let word = null;
+      Array.from(text).forEach((character, index) => {
+        if (character === "\n") {
+          fragment.appendChild(document.createElement("br"));
+          word = null;
+          return;
+        }
+        const glyph = document.createElement("span");
+        glyph.dataset.layoutId = `char-${parentId}-${index}`;
+        glyph.dataset.layoutParent = parentId;
+        glyph.dataset.layoutCharacter = "";
+        glyph.dataset.layoutLabel = `Carácter ${index + 1}: ${character === " " ? "espacio" : character}`;
+        glyph.textContent = character;
+        if (/\s/.test(character)) {
+          word = null;
+          fragment.appendChild(glyph);
+        } else {
+          if (!word) {
+            word = document.createElement("span");
+            word.dataset.layoutWord = "";
+            fragment.appendChild(word);
+          }
+          word.appendChild(glyph);
+        }
+        registerElement(glyph);
+        if (state[glyph.dataset.layoutId]) applySettings(glyph, state[glyph.dataset.layoutId]);
+      });
+      element.replaceChildren(fragment);
     }
 
     function excelColumnNumber(column) {
@@ -268,6 +320,9 @@
     }
 
     function cellGeometry(element) {
+      if (element.hasAttribute("data-layout-character")) {
+        return { cell: null, column: null, row: null };
+      }
       const cell = element.closest("[data-cell]");
       const match = cell?.dataset.cell?.match(/^([A-Z]+)(\d+)$/);
       const table = cell?.closest("table");
@@ -288,7 +343,7 @@
       if (cell) {
         restoreStyles(cell, originalCellStyles.get(cell), cellStyleProperties);
       }
-      if (originalMarkup.has(element)) {
+      if (textEditable.has(element) && originalMarkup.has(element)) {
         element.innerHTML = originalMarkup.get(element);
       }
       if (originalSources.has(element)) {
@@ -303,6 +358,7 @@
         element.setAttribute("src", assets[elementId].url);
       }
       if (!settings) {
+        renderCharacters(element);
         return;
       }
       const values = normalizedSettings(settings);
@@ -354,6 +410,7 @@
       if (values.hidden) {
         element.style.setProperty("display", "none", "important");
       }
+      renderCharacters(element);
     }
 
     function elementForId(elementId) {
@@ -386,41 +443,52 @@
       return `${base} · ${summary}`;
     }
 
-    const editableElements = Array.from(preview?.querySelectorAll("[data-layout-id]") || []);
-    editableElements.forEach((element) => {
+    function registerElement(element) {
       originalMarkup.set(element, element.innerHTML);
-      originalText.set(element, (element.textContent || "").trim());
+      originalText.set(element, elementText(element));
+      if (isTextEditable(element)) textEditable.add(element);
       originalElementStyles.set(element, captureStyles(element, elementStyleProperties));
       if (element.tagName === "IMG") {
         originalSources.set(element, element.getAttribute("src") || "");
       }
-      const cell = element.closest("[data-cell]");
+      const { cell, column, row } = cellGeometry(element);
       if (cell && !originalCellStyles.has(cell)) {
         originalCellStyles.set(cell, captureStyles(cell, cellStyleProperties));
       }
-      const { column, row } = cellGeometry(element);
       if (column && !originalColumnStyles.has(column)) {
         originalColumnStyles.set(column, captureStyles(column, columnStyleProperties));
       }
       if (row && !originalRowStyles.has(row)) {
         originalRowStyles.set(row, captureStyles(row, rowStyleProperties));
       }
-    });
-    if (elementSelect) {
-      editableElements.forEach((element) => {
+    }
+
+    const editableElements = Array.from(preview?.querySelectorAll("[data-layout-id]") || []);
+    editableElements.forEach(registerElement);
+
+    function refreshElementOptions() {
+      if (!elementSelect) return;
+      elementSelect.replaceChildren(new Option("Sin selección", ""));
+      const parentId = selectedElement?.dataset.layoutParent || selectedElement?.dataset.layoutId;
+      const characters = characterMode && parentId
+        ? Array.from(elementForId(parentId)?.querySelectorAll("[data-layout-character]") || [])
+        : [];
+      [...editableElements, ...characters].forEach((element) => {
         const option = document.createElement("option");
         option.value = element.dataset.layoutId;
         option.textContent = elementLabel(element);
         elementSelect.appendChild(option);
       });
+      elementSelect.value = selectedElement?.dataset.layoutId || "";
     }
+    refreshElementOptions();
 
     if (savedStyle) {
       savedStyle.textContent = "";
     }
     editableElements.forEach((element) => {
       const elementId = element.dataset.layoutId;
-      if (state[elementId] || assets[elementId]) {
+      if (state[elementId] || assets[elementId] || hasCharacterSettings(elementId)) {
         applySettings(element, state[elementId]);
       }
     });
@@ -482,6 +550,7 @@
       selectedElement?.classList.remove("layout-selected");
       selectedElement = element;
       selectedElement.classList.add("layout-selected");
+      refreshElementOptions();
       const label = elementLabel(element);
       if (selectionLabel) {
         selectionLabel.textContent = label;
@@ -515,7 +584,10 @@
     preview?.addEventListener("pointerdown", (event) => {
       const directElement = event.target.closest("[data-layout-id]");
       const cell = event.target.closest("[data-cell]");
-      const element = directElement || cell?.querySelector("[data-layout-id]");
+      let element = directElement || cell?.querySelector("[data-layout-id]");
+      if (!characterMode && element?.hasAttribute("data-layout-character")) {
+        element = elementForId(element.dataset.layoutParent);
+      }
       if (!element || !preview.contains(element)) {
         return;
       }
@@ -680,10 +752,29 @@
         return;
       }
       delete state[selectedElement.dataset.layoutId];
+      if (!selectedElement.hasAttribute("data-layout-character")) {
+        const prefix = `char-${selectedElement.dataset.layoutId}-`;
+        Object.keys(state).filter((key) => key.startsWith(prefix)).forEach((key) => delete state[key]);
+      }
       applySettings(selectedElement, null);
       refreshGeometry();
       updateInspector(defaults);
       syncState();
+    });
+
+    modeControls.forEach((control) => {
+      control.addEventListener("change", () => {
+        if (!control.checked) return;
+        const parentId = selectedElement?.dataset.layoutParent || selectedElement?.dataset.layoutId;
+        selectedElement?.classList.remove("layout-selected");
+        characterMode = control.value === "character";
+        layoutEditor.dataset.selectionMode = control.value;
+        editableElements.forEach((element) => applySettings(element, state[element.dataset.layoutId]));
+        refreshGeometry();
+        const parent = elementForId(parentId);
+        if (parent) selectElement(parent);
+        else refreshElementOptions();
+      });
     });
 
     zoomControl?.addEventListener("change", () => {

@@ -81,13 +81,18 @@
     </section>
 
     <section class="liq-royalties" data-layout-id="block-royalties" data-layout-label="Regalías">
-      <div>
-        <strong>REGALÍAS ADEUDADAS POR EL PROVEEDOR</strong>
-        <div class="royalty-period">{{ periodo_regalias }}</div>
+      <strong class="royalty-title">REGALÍAS ADEUDADAS POR EL PROVEEDOR</strong>
+      <div class="royalty-period">{{ periodo_regalias }}</div>
+      <div class="royalty-metal royalty-gold" data-layout-id="block-royalty-gold" data-layout-label="Regalías de oro">
+        <span>ORO</span>
+        <strong>{{ regalia_au }}</strong>
+        <strong class="royalty-total">{{ regalia_oro_total }}</strong>
       </div>
-      <div class="royalty-head"><span>ORO</span><span>PLATA</span></div>
-      <div class="royalty-row"><strong>{{ regalia_au }}</strong><strong>{{ regalia_ag }}</strong></div>
-      <div class="royalty-row boxes"><strong>{{ regalia_oro_total }}</strong><strong>{{ regalia_plata_total }}</strong></div>
+      <div class="royalty-metal royalty-silver" data-layout-id="block-royalty-silver" data-layout-label="Regalías de plata">
+        <span>PLATA</span>
+        <strong>{{ regalia_ag }}</strong>
+        <strong class="royalty-total">{{ regalia_plata_total }}</strong>
+      </div>
     </section>
 
     <section class="liq-transfer" data-layout-id="block-transfer" data-layout-label="Valor a transferir">

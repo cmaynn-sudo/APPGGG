@@ -44,6 +44,12 @@
     </select>
   </label>
 
+  <fieldset class="layout-selection-mode">
+    <legend class="sr-only">Selección</legend>
+    <label><input type="radio" name="layout-mode" value="element" data-layout-mode checked><span>Elemento</span></label>
+    <label><input type="radio" name="layout-mode" value="character" data-layout-mode><span>Carácter</span></label>
+  </fieldset>
+
   <div class="layout-toolbar-actions">
     <form method="post" action="/editor-plantillas/restablecer">
       <input type="hidden" name="slug" value="{{ template.slug }}">
@@ -68,7 +74,7 @@
 <section class="layout-workspace" data-layout-editor>
   <div class="layout-canvas" data-layout-canvas>
     <div class="layout-preview-surface print-{{ template.slug }}" data-layout-preview style="--editor-zoom: .65">
-      {% include generated_template %}
+      {% if preview_html is defined %}{{ preview_html|safe }}{% else %}{% include generated_template %}{% endif %}
     </div>
   </div>
 

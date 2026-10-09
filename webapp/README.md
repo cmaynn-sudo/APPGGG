@@ -60,6 +60,20 @@ y antes de descontar las regalías. El TXT conserva las frases de facturación,
 usa dos decimales con formato colombiano y se genera en UTF-8 con BOM y saltos
 de línea de Windows para mantener las tildes en editores de texto.
 
+## Diseño de planillas
+
+En `Parámetros`, abre el editor de planillas. El modo `Elemento` permite mover
+textos, cuadros, imágenes y firmas. El modo `Carácter` permite seleccionar una
+letra o símbolo para cambiar su contenido, posición, tamaño o visibilidad.
+Los ajustes se guardan por plantilla y se aplican tanto a la vista web como al
+PDF. `Restablecer elemento` deshace el ajuste seleccionado; al restablecer un
+texto completo también se eliminan los ajustes individuales de sus caracteres.
+
+Los valores automáticos siguen calculándose con las fórmulas originales.
+Reemplazar el contenido de un campo automático solo fija su texto visible en
+la plantilla, no cambia los datos ni los totales del dashboard. En Preliminares,
+el ancho y el alto de una celda siguen ajustando su columna y fila completas.
+
 ## Almacenamiento persistente para Render Free
 
 Render Free no conserva archivos locales después de reinicios, reposos o deploys. La opción recomendada para esta aplicación es Cloudflare R2, porque está diseñada para archivos y usa una API compatible con S3.
