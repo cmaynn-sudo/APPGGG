@@ -246,7 +246,8 @@ class LayoutEditorTests(unittest.TestCase):
         )
 
         self.assertIn("col:nth-child(2){width:260.00px", css)
-        self.assertIn("tr:nth-of-type(6){height:48.00px", css)
+        row_rule = next(rule for rule in css.splitlines() if "tr:nth-of-type(6){" in rule)
+        self.assertIn("height:48.00px", row_rule)
         self.assertIn('[data-layout-id="cell-B6"]{', css)
         self.assertIn("display:none !important", css)
         self.assertNotIn("display:block !important", css)
@@ -265,6 +266,74 @@ class LayoutEditorTests(unittest.TestCase):
 
         self.assertIn("Ángel &amp; Asociados<br>Representante &lt;Legal&gt;", result)
         self.assertNotIn("Texto original", result)
+
+    def test_explicit_grid_dimensions_override_legacy_cell_sizes(self) -> None:
+        store = {"template_layouts": {}}
+        with patch.object(data_store, "load_store", return_value=store), patch.object(data_store, "save_store"):
+            layout = data_store.update_template_layout("preliminares", json.dumps({
+                "cell-B6": {"width": 250, "height": 30},
+                "column-B": {"width": 320},
+                "row-6": {"height": 48},
+                "column-evil selector": {"width": 100},
+            }))
+        self.assertEqual(layout["elements"]["column-B"]["width"], 320)
+        self.assertEqual(layout["elements"]["row-6"]["height"], 48)
+        self.assertNotIn("column-evil selector", layout["elements"])
+        css = renderer.template_layout_css("preliminares", layout)
+        self.assertIn(".doc-sheet{width:1236.00px", css)
+        self.assertIn("col:nth-child(2){width:320.00px", css)
+        cell_rule = next(rule for rule in css.splitlines() if "tr:nth-of-type(6) > td:nth-child(2){" in rule)
+        self.assertIn("width:320.00px", cell_rule)
+        self.assertIn("height:48.00px", cell_rule)
+        self.assertIn('[data-layout-id="image-1"]{left:373.00px', css)
+
+    def test_grid_parser_tracks_merged_cells_without_shifting_following_cells(self) -> None:
+        parser = renderer.TableGeometryParser()
+        parser.feed('<table><col style="width:100px"><col style="width:80px">'
+                    '<tr style="height:30px"><td rowspan="2">A</td><td>B</td></tr>'
+                    '<tr style="height:25px"><td>C</td></tr></table>')
+        self.assertEqual(parser.columns, [100, 80])
+        self.assertEqual(parser.rows, [30, 25])
+        self.assertEqual([(cell.row, cell.column, cell.rowspan) for cell in parser.cells], [(0, 0, 2), (0, 1, 1), (1, 1, 1)])
+
+    def test_receipt_keeps_signature_transform_and_reserves_space_before_footer(self) -> None:
+        css = renderer.template_layout_css("recibo-metales", {"elements": {
+            "image-2": {"x": -21.2, "y": 96.4, "scale": 1.27},
+        }})
+        self.assertIn("translate(-21.20px, 96.40px) scale(1.270)", css)
+        footer = next(rule for rule in css.splitlines() if "tr:nth-of-type(48){" in rule)
+        self.assertIn("top:1042.57px", footer)
+
+    def test_preliminares_use_uniform_body_rows_and_font_files_are_bundled(self) -> None:
+        _columns, rows, _cells, _images = renderer.template_table_geometry("preliminares")
+        self.assertEqual(rows[5:13], (40,) * 8)
+        css = (renderer.STATIC_DIR / "print.css").read_text()
+        self.assertIn('font-size: 14.7px !important', css)
+        for variant in ("Regular", "Bold", "Italic", "BoldItalic"):
+            name = f"LiberationSans-{variant}.ttf"
+            self.assertTrue((renderer.STATIC_DIR / "fonts" / name).is_file())
+            self.assertIn(name, css)
+        self.assertTrue((renderer.STATIC_DIR / "fonts" / "LICENSE_LIBERATION").is_file())
+
+    def test_wide_columns_fit_the_download_page_with_the_same_web_print_scale(self) -> None:
+        layout = {"elements": {"column-B": {"width": 600}}}
+        zoom = renderer.pdf_zoom("preliminares", layout)
+        self.assertLess(zoom, 0.62)
+        columns, _rows, _cells, _images = renderer.template_table_geometry("preliminares")
+        width = sum(renderer.resized_column_widths(columns, layout["elements"]))
+        self.assertAlmostEqual(width * zoom, 190 * 96 / 25.4)
+        self.assertIn(f"scale({zoom})", renderer.print_scale_css("preliminares", layout))
+
+    def test_pdf_failure_does_not_silently_discard_saved_design(self) -> None:
+        with (
+            patch.object(renderer, "render_weasy_pdf", side_effect=ImportError("motor no disponible")),
+            patch.object(data_store, "get_template_layout", return_value={"elements": {"image-2": {"y": 20}}}),
+            patch.object(data_store, "get_template_assets", return_value={}),
+            patch.object(renderer, "render_recibo_pdf") as simplified,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "No se pudo exportar el diseño guardado"):
+                renderer.render_print_pdf("recibo-metales")
+        simplified.assert_not_called()
 
     def test_signature_asset_is_saved_inside_persistent_uploads(self) -> None:
         store = {"template_assets": {}}

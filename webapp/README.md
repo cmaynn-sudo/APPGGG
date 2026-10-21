@@ -74,6 +74,23 @@ Reemplazar el contenido de un campo automático solo fija su texto visible en
 la plantilla, no cambia los datos ni los totales del dashboard. En Preliminares,
 el ancho y el alto de una celda siguen ajustando su columna y fila completas.
 
+El modo `Cuadros` muestra encabezados de columnas y filas como en Excel. Arrastra
+el borde de un encabezado para cambiar su tamaño, o usa las medidas del panel
+lateral. Los separadores también admiten flechas del teclado (Mayús: 10 px).
+El ancho de la hoja aumenta con sus columnas; una celda combinada conserva la
+suma de las columnas y filas que ocupa. Estos tamaños se guardan junto al diseño.
+Los logos se desplazan con sus celdas de anclaje y la impresión se ajusta al ancho
+del papel si se amplían las columnas, sin recortar las columnas de la derecha.
+
+Las plantillas generadas desde Excel usan una cuadrícula de medidas fijas en el
+editor, la vista web y el PDF para evitar las diferencias de celdas combinadas
+entre navegadores y WeasyPrint. Las fuentes Liberation Sans se incluyen en
+`static/fonts/`, con su licencia SIL OFL, y se incrustan en el PDF. Preliminares
+usa 14,7 px en todas las celdas y filas de datos de 40 px, ajustables en el editor.
+El recibo reserva espacio antes de la identificación para su firma cuando no
+se ha fijado manualmente esa fila. Una falla del motor PDF no sustituye un diseño
+personalizado por un PDF simplificado sin sus ajustes.
+
 ## Almacenamiento persistente para Render Free
 
 Render Free no conserva archivos locales después de reinicios, reposos o deploys. La opción recomendada para esta aplicación es Cloudflare R2, porque está diseñada para archivos y usa una API compatible con S3.

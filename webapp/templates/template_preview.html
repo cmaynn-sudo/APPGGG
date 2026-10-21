@@ -24,7 +24,7 @@
     <h2>Vista de impresión</h2>
     <span>{{ template.workbook.name }}</span>
   </div>
-  <div class="print-preview">
+  <div class="print-preview print-{{ template.slug }}">
     <style>{{ layout_css|default('')|safe }}</style>
     {% if preview_html is defined %}{{ preview_html|safe }}{% else %}{% include generated_template %}{% endif %}
   </div>

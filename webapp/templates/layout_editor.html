@@ -48,6 +48,7 @@
     <legend class="sr-only">Selección</legend>
     <label><input type="radio" name="layout-mode" value="element" data-layout-mode checked><span>Elemento</span></label>
     <label><input type="radio" name="layout-mode" value="character" data-layout-mode><span>Carácter</span></label>
+    <label><input type="radio" name="layout-mode" value="grid" data-layout-mode><span>Cuadros</span></label>
   </fieldset>
 
   <div class="layout-toolbar-actions">
@@ -79,6 +80,19 @@
   </div>
 
   <aside class="layout-inspector panel" aria-label="Propiedades del elemento">
+    <section class="layout-grid-tools" data-layout-grid-tools hidden>
+      <h2>Columnas y filas</h2>
+      <label>Columna<select data-layout-column-select></select></label>
+      <div class="layout-dimension-control">
+        <label>Ancho de columna (px)<input type="number" min="18" max="1200" step="1" data-layout-column-width></label>
+        <button class="icon-action" type="button" data-layout-column-reset aria-label="Restablecer ancho de columna" data-tooltip="Restablecer el ancho original">{{ icons.icon("refresh") }}</button>
+      </div>
+      <label>Fila<select data-layout-row-select></select></label>
+      <div class="layout-dimension-control">
+        <label>Alto de fila (px)<input type="number" min="18" max="1200" step="1" data-layout-row-height></label>
+        <button class="icon-action" type="button" data-layout-row-reset aria-label="Restablecer alto de fila" data-tooltip="Restablecer el alto original">{{ icons.icon("refresh") }}</button>
+      </div>
+    </section>
     <div class="panel-title">
       <div>
         <h2>Elemento</h2>

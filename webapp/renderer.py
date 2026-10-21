@@ -6,8 +6,10 @@ import io
 import math
 import re
 from datetime import date
+from functools import lru_cache
 from html.parser import HTMLParser
 from pathlib import Path
+from typing import NamedTuple
 from urllib.parse import unquote, urlparse
 from xml.sax.saxutils import escape
 
@@ -57,7 +59,7 @@ def render_print_html(
     assets = data_store.get_template_assets(slug)
     body = apply_template_content_overrides(body, layout, assets)
     print_css = (STATIC_DIR / "print.css").read_text(encoding="utf-8")
-    scale_css = print_scale_css(slug) if include_print_scale else ""
+    scale_css = print_scale_css(slug, layout) if include_print_scale else ""
     saved_layout_css = template_layout_css(slug, layout)
     return f"""<!doctype html>
 <html lang="es">
@@ -91,6 +93,8 @@ def template_layout_css(slug: str, layout: dict | None = None) -> str:
 
     rules = []
     for element_id, settings in elements.items():
+        if isinstance(element_id, str) and element_id.startswith(("column-", "row-")):
+            continue
         if not isinstance(element_id, str) or not re.fullmatch(
             r"(?:cell-[A-Z]{1,3}\d+|image-[a-z0-9-]+|block-[a-z0-9-]+|(?:text|char)-[A-Za-z0-9-]+)",
             element_id,
@@ -133,49 +137,180 @@ def template_layout_css(slug: str, layout: dict | None = None) -> str:
         rules.append(
             f'[data-layout-id="{element_id}"]' + "{" + ";".join(declarations) + "}"
         )
-        if element_id.startswith("cell-") and (width > 0 or height > 0):
-            cell_declarations = []
-            content_declarations = []
-            coordinate = element_id.removeprefix("cell-")
-            coordinate_match = re.fullmatch(r"([A-Z]{1,3})(\d+)", coordinate)
-            if width > 0:
-                cell_declarations.extend(
-                    (f"width:{width:.2f}px !important", f"min-width:{width:.2f}px !important")
-                )
-                if coordinate_match:
-                    column_number = excel_column_number(coordinate_match.group(1))
-                    rules.append(
-                        f'[data-template="{slug}"] .excel-sheet col:nth-child({column_number})'
-                        + "{"
-                        + f"width:{width:.2f}px !important"
-                        + "}"
-                    )
-            if height > 0:
-                cell_declarations.extend(
-                    (f"height:{height:.2f}px !important", f"min-height:{height:.2f}px !important")
-                )
-                if not settings.get("hidden"):
-                    content_declarations.append("display:block !important")
-                    content_declarations.append(f"min-height:{height:.2f}px !important")
-                if coordinate_match:
-                    row_number = int(coordinate_match.group(2))
-                    rules.append(
-                        f'[data-template="{slug}"] .excel-sheet tr:nth-of-type({row_number})'
-                        + "{"
-                        + f"height:{height:.2f}px !important"
-                        + "}"
-                    )
-            rules.append(
-                f'[data-cell="{coordinate}"]' + "{" + ";".join(cell_declarations) + "}"
-            )
-            if content_declarations:
-                rules.append(
-                    f'[data-layout-id="{element_id}"]'
-                    + "{"
-                    + ";".join(content_declarations)
-                    + "}"
-                )
+    rules.extend(table_dimension_css(slug, elements))
     return "\n".join(rules)
+
+
+class TableCellGeometry(NamedTuple):
+    row: int
+    index: int
+    column: int
+    rowspan: int
+    colspan: int
+    vertical: str
+
+
+class TableImageGeometry(NamedTuple):
+    id: str
+    left: float
+    top: float
+    height: float
+
+
+def grid_anchor_shift(offset: float, original: tuple, resized: list) -> float:
+    boundary = 0.0
+    for index, size in enumerate(original):
+        if offset < boundary + size:
+            return sum(resized[:index]) - boundary
+        boundary += size
+    return 0.0
+
+
+class TableGeometryParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.columns: list[float] = []
+        self.rows: list[float] = []
+        self.cells: list[TableCellGeometry] = []
+        self.occupied: set[tuple[int, int]] = set()
+        self.next_column = 0
+        self.cell_index = 0
+        self.images: list[TableImageGeometry] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attributes = dict(attrs)
+        if tag == "img" and attributes.get("data-layout-id"):
+            style = attributes.get("style") or ""
+            top = re.search(r"(?:^|;)top:([\d.]+)px", style)
+            left = re.search(r"(?:^|;)left:([\d.]+)px", style)
+            height = re.search(r"(?:^|;)height:([\d.]+)px", style)
+            if top and left and height:
+                self.images.append(TableImageGeometry(attributes["data-layout-id"], float(left[1]), float(top[1]), float(height[1])))
+            return
+        if tag == "td":
+            row = len(self.rows) - 1
+            while (row, self.next_column) in self.occupied:
+                self.next_column += 1
+            rowspan = int(attributes.get("rowspan") or 1)
+            colspan = int(attributes.get("colspan") or 1)
+            align = re.search(r"vertical-align:(top|middle|bottom)", attributes.get("style") or "")
+            self.cells.append(TableCellGeometry(row, self.cell_index, self.next_column, rowspan, colspan, align[1] if align else "middle"))
+            for r in range(row, row + rowspan):
+                for c in range(self.next_column, self.next_column + colspan):
+                    self.occupied.add((r, c))
+            self.next_column += colspan
+            self.cell_index += 1
+            return
+        if tag not in {"col", "tr"}:
+            return
+        dimension = "width" if tag == "col" else "height"
+        match = re.search(rf"(?:^|;)\s*{dimension}\s*:\s*([\d.]+)px", dict(attrs).get("style") or "")
+        target = self.columns if tag == "col" else self.rows
+        target.append(float(match.group(1)) if match else 20.0)
+        if tag == "tr":
+            self.next_column = 0
+            self.cell_index = 0
+
+
+@lru_cache(maxsize=16)
+def template_table_geometry(slug: str) -> tuple:
+    spec = TEMPLATE_BY_SLUG[slug]
+    source, _filename, _uptodate = env.loader.get_source(env, spec.render_template_name)
+    parser = TableGeometryParser()
+    parser.feed(source)
+    if slug == "preliminares":
+        parser.rows[4] = 88.0
+        parser.rows[5:13] = [40.0] * 8
+        parser.rows[13] = 28.0
+    return tuple(parser.columns), tuple(parser.rows), tuple(parser.cells), tuple(parser.images)
+
+
+def table_dimension_css(slug: str, elements: dict) -> list[str]:
+    base_columns, base_rows, cells, images = template_table_geometry(slug)
+    if not base_columns:
+        return []
+    rows = {}
+    # Keep existing cell-based sizes; explicit ruler sizes take precedence.
+    for element_id, settings in elements.items():
+        if not isinstance(settings, dict) or not isinstance(element_id, str):
+            continue
+        cell_match = re.fullmatch(r"cell-([A-Z]{1,3})(\d+)", element_id)
+        if cell_match:
+            height = layout_number(settings.get("height"), 0, 0, 1200)
+            if height:
+                rows[int(cell_match[2])] = height
+    for element_id, settings in elements.items():
+        if not isinstance(settings, dict) or not isinstance(element_id, str):
+            continue
+        row = re.fullmatch(r"row-([1-9]\d{0,3})", element_id)
+        if row:
+            value = layout_number(settings.get("height"), 0, 0, 1200)
+            if value:
+                rows[int(row[1])] = max(18, value)
+    scope = f'[data-template="{slug}"]'
+    widths = resized_column_widths(base_columns, elements)
+    heights = list(base_rows)
+    rules = []
+    for index, width in enumerate(widths):
+        if width != base_columns[index]:
+            rules.append(f'{scope} .excel-sheet col:nth-child({index + 1}){{width:{width:.2f}px !important}}')
+    total_width = sum(widths)
+    for row, height in rows.items():
+        if not 1 <= row <= len(base_rows):
+            continue
+        heights[row - 1] = height
+    if slug == "recibo-metales" and 47 not in rows:
+        signature = next((image for image in images if image.id == "image-2"), None)
+        settings = elements.get("image-2", {})
+        if signature and isinstance(settings, dict) and not settings.get("hidden"):
+            top = signature.top + grid_anchor_shift(signature.top, base_rows, heights)
+            height = layout_number(settings.get("height"), 0, 0, 1200) or signature.height
+            scale = layout_number(settings.get("scale"), 1, 0.4, 2.5)
+            bottom = top + layout_number(settings.get("y"), 0, -500, 500) + height * (1 + scale) / 2
+            # Reserve space before the identity lines without changing the saved signature.
+            heights[46] += max(0, bottom + 8 - sum(heights[:47]))
+    total_height = sum(heights)
+    rules.extend((
+        f'{scope} .doc-sheet{{width:{total_width:.2f}px !important}}',
+        f'{scope} .excel-sheet{{display:block;position:relative;width:{total_width:.2f}px !important;height:{total_height:.2f}px}}',
+        f'{scope} .excel-sheet colgroup{{display:none}}',
+        f'{scope} .excel-sheet > tbody{{display:block}}',
+    ))
+    for image in images:
+        left = image.left + grid_anchor_shift(image.left, base_columns, widths)
+        top = image.top + grid_anchor_shift(image.top, base_rows, heights)
+        rules.append(f'{scope} [data-layout-id="{image.id}"]{{left:{left:.2f}px !important;top:{top:.2f}px !important}}')
+    for index, height in enumerate(heights):
+        selector = f'{scope} .excel-sheet tr:nth-of-type({index + 1})'
+        rules.append(f'{selector}{{display:block;position:absolute;left:0;top:{sum(heights[:index]):.2f}px;width:100%;height:{height:.2f}px !important}}')
+    for cell in cells:
+        selector = f'{scope} .excel-sheet tr:nth-of-type({cell.row + 1}) > td:nth-child({cell.index + 1})'
+        width = sum(widths[cell.column:cell.column + cell.colspan])
+        height = sum(heights[cell.row:cell.row + cell.rowspan])
+        justify = {"top": "flex-start", "middle": "center", "bottom": "flex-end"}[cell.vertical]
+        rules.append(
+            f'{selector}{{display:flex;flex-direction:column;justify-content:{justify};position:absolute !important;'
+            f'left:{sum(widths[:cell.column]):.2f}px;top:0;width:{width:.2f}px !important;height:{height:.2f}px !important;min-width:0;min-height:0}}'
+        )
+        if cell.rowspan == 1 and cell.row + 1 in rows:
+            rules.append(f'{selector} > .excel-cell-content{{max-height:{max(0, height - 5):.2f}px !important;overflow:hidden}}')
+    return rules
+
+
+def resized_column_widths(original: tuple, elements: dict) -> list[float]:
+    widths = list(original)
+    for pattern in (r"cell-([A-Z]{1,3})\d+", r"column-([A-Z]{1,3})"):
+        for element_id, settings in elements.items():
+            if not isinstance(element_id, str) or not isinstance(settings, dict):
+                continue
+            match = re.fullmatch(pattern, element_id)
+            if not match:
+                continue
+            column = excel_column_number(match[1]) - 1
+            width = layout_number(settings.get("width"), 0, 0, 1200)
+            if width and 0 <= column < len(widths):
+                widths[column] = max(18, width) if element_id.startswith("column-") else width
+    return widths
 
 
 def excel_column_number(column: str) -> int:
@@ -454,9 +589,18 @@ def render_print_pdf(slug: str, context: dict | None = None) -> bytes:
     try:
         return render_weasy_pdf(slug, data)
     except ImportError:
-        print("[recepción] WeasyPrint no está instalado; usando PDF simplificado.")
+        pdf_error = "WeasyPrint no está instalado."
     except Exception as exc:
-        print(f"[recepción] No se pudo generar PDF desde HTML; usando PDF simplificado: {exc}")
+        pdf_error = str(exc)
+    import data_store
+
+    if data_store.get_template_layout(slug).get("elements") or data_store.get_template_assets(slug):
+        raise RuntimeError(
+            "No se pudo exportar el diseño guardado. Verifica el motor WeasyPrint y sus "
+            "bibliotecas en Render (despliegue Docker). No se generó un PDF simplificado "
+            "porque perdería tus ajustes. Detalle: " + pdf_error
+        )
+    print(f"[recepción] Usando PDF simplificado: {pdf_error}")
     reportlab_renderers = {
         "preliminares": render_preliminares_pdf,
         "recibo-metales": render_recibo_pdf,
@@ -487,13 +631,26 @@ def render_weasy_pdf(slug: str, context: dict | None = None) -> bytes:
     return HTML(string=html, base_url=WEBAPP_DIR.as_uri()).write_pdf(zoom=zoom)
 
 
-def pdf_zoom(slug: str) -> float:
-    return {
+def pdf_zoom(slug: str, layout: dict | None = None) -> float:
+    zoom = {
         "preliminares": 0.62,
         "recibo-metales": 0.62,
         "reporte-analisis": 0.62,
         "certificado-regalias": 0.89,
     }.get(slug, 1.0)
+    original, _rows, _cells, _images = template_table_geometry(slug)
+    if not original:
+        return zoom
+    if layout is None:
+        import data_store
+
+        layout = data_store.get_template_layout(slug)
+    width = sum(resized_column_widths(original, (layout or {}).get("elements", {})))
+    spec = TEMPLATE_BY_SLUG[slug]
+    page_width = 215.9 if spec.page_size.lower() == "letter" else 210.0
+    margin = float(spec.page_margin.removesuffix("mm"))
+    available_width = (page_width - margin * 2) * 96 / 25.4
+    return min(zoom, available_width / width)
 
 
 def pdf_page_box(slug: str, zoom: float) -> tuple[str, str]:
@@ -524,15 +681,9 @@ def scaled_margin(margin: str, zoom: float) -> str:
     return margin
 
 
-def print_scale_css(slug: str) -> str:
-    scales = {
-        "preliminares": "0.62",
-        "recibo-metales": "0.62",
-        "reporte-analisis": "0.62",
-        "certificado-regalias": "0.89",
-    }
-    scale = scales.get(slug)
-    if not scale:
+def print_scale_css(slug: str, layout: dict | None = None) -> str:
+    scale = pdf_zoom(slug, layout)
+    if scale == 1:
         return ""
     inverse = f"{1 / float(scale):.4f}"
     return f"""

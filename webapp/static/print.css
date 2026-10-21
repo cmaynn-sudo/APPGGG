@@ -1,7 +1,61 @@
+@font-face {
+  font-family: "GG Documentos";
+  src: url("/static/fonts/LiberationSans-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "GG Documentos";
+  src: url("/static/fonts/LiberationSans-Bold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+}
+
+@font-face {
+  font-family: "GG Documentos";
+  src: url("/static/fonts/LiberationSans-Italic.ttf") format("truetype");
+  font-style: italic;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "GG Documentos";
+  src: url("/static/fonts/LiberationSans-BoldItalic.ttf") format("truetype");
+  font-style: italic;
+  font-weight: 700;
+}
+
 .print-document {
   color: #111827;
   display: block;
   font-family: Arial, Helvetica, sans-serif;
+}
+
+.print-document,
+.print-document * {
+  box-sizing: border-box;
+}
+
+.print-document .excel-sheet td {
+  font-family: "GG Documentos", Arial, sans-serif !important;
+}
+
+[data-template="preliminares"] .excel-sheet td {
+  font-size: 14.7px !important;
+  font-style: normal !important;
+  vertical-align: middle !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+
+[data-template="preliminares"] .excel-sheet .excel-field {
+  white-space: normal !important;
+  overflow: hidden;
+}
+
+.excel-sheet td > [data-layout-text]:empty {
+  display: none;
 }
 
 .doc-sheet {

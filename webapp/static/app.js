@@ -147,6 +147,43 @@
     const imageStatus = layoutEditor.querySelector("[data-layout-image-status]");
     const imageRemove = layoutEditor.querySelector("[data-layout-image-remove]");
     const modeControls = document.querySelectorAll("[data-layout-mode]");
+    const table = preview.querySelector(".excel-sheet");
+    const gridTools = layoutEditor.querySelector("[data-layout-grid-tools]");
+    const columnSelect = layoutEditor.querySelector("[data-layout-column-select]");
+    const rowSelect = layoutEditor.querySelector("[data-layout-row-select]");
+    const columnWidth = layoutEditor.querySelector("[data-layout-column-width]");
+    const rowHeight = layoutEditor.querySelector("[data-layout-row-height]");
+    const tableColumns = Array.from(table?.querySelectorAll("col") || []);
+    const tableRows = Array.from(table?.rows || []);
+    const baseColumnWidths = tableColumns.map((col) => parseFloat(col.style.width));
+    const baseRowHeights = tableRows.map((row) => parseFloat(row.style.height));
+    if (table && preview.querySelector('[data-template="preliminares"]')) {
+      baseRowHeights[4] = 88;
+      baseRowHeights.splice(5, 8, ...Array(8).fill(40));
+      baseRowHeights[13] = 28;
+    }
+    let gridWidths = [...baseColumnWidths];
+    let gridHeights = [...baseRowHeights];
+    const gridImages = Array.from(preview.querySelectorAll(".excel-image")).map((image) => ({
+      image, left: parseFloat(image.style.left), top: parseFloat(image.style.top), height: parseFloat(image.style.height),
+    }));
+    const gridCells = [];
+    const occupied = new Set();
+    tableRows.forEach((row, rowIndex) => {
+      let column = 0;
+      Array.from(row.cells).forEach((cell) => {
+        while (occupied.has(`${rowIndex}:${column}`)) column++;
+        gridCells.push({ cell, row: rowIndex, column, rowspan: cell.rowSpan, colspan: cell.colSpan,
+          vertical: cell.style.verticalAlign || "middle" });
+        for (let r = rowIndex; r < rowIndex + cell.rowSpan; r++) {
+          for (let c = column; c < column + cell.colSpan; c++) occupied.add(`${r}:${c}`);
+        }
+        column += cell.colSpan;
+      });
+    });
+    const gridHeaders = [];
+    let gridRulers = null;
+    let resizeState = null;
     const defaults = {
       x: 0,
       y: 0,
@@ -170,8 +207,6 @@
     const originalSources = new WeakMap();
     const originalElementStyles = new WeakMap();
     const originalCellStyles = new WeakMap();
-    const originalColumnStyles = new WeakMap();
-    const originalRowStyles = new WeakMap();
 
     try {
       const parsed = JSON.parse(initialState?.textContent || "{}");
@@ -235,10 +270,10 @@
       "height",
       "min-width",
       "min-height",
+      "max-height",
+      "overflow",
     ];
     const cellStyleProperties = ["width", "height", "min-width", "min-height"];
-    const columnStyleProperties = ["width", "min-width"];
-    const rowStyleProperties = ["height", "min-height"];
 
     function captureStyles(element, properties) {
       return Object.fromEntries(properties.map((property) => [
@@ -339,7 +374,7 @@
 
     function clearElementStyles(element) {
       restoreStyles(element, originalElementStyles.get(element), elementStyleProperties);
-      const { cell, column, row } = cellGeometry(element);
+      const { cell } = cellGeometry(element);
       if (cell) {
         restoreStyles(cell, originalCellStyles.get(cell), cellStyleProperties);
       }
@@ -384,22 +419,7 @@
         element.style.setProperty("text-align", values.text_align, "important");
       }
       const { cell, column, row } = cellGeometry(element);
-      if (cell) {
-        if (values.width > 0) {
-          cell.style.setProperty("width", `${values.width}px`, "important");
-          cell.style.setProperty("min-width", `${values.width}px`, "important");
-          column?.style.setProperty("width", `${values.width}px`, "important");
-          column?.style.setProperty("min-width", `${values.width}px`, "important");
-        }
-        if (values.height > 0) {
-          cell.style.setProperty("height", `${values.height}px`, "important");
-          cell.style.setProperty("min-height", `${values.height}px`, "important");
-          row?.style.setProperty("height", `${values.height}px`, "important");
-          row?.style.setProperty("min-height", `${values.height}px`, "important");
-          element.style.setProperty("display", "block", "important");
-          element.style.setProperty("min-height", `${values.height}px`, "important");
-        }
-      } else {
+      if (!cell) {
         if (values.width > 0) {
           element.style.setProperty("width", `${values.width}px`, "important");
         }
@@ -420,17 +440,216 @@
     }
 
     function refreshGeometry() {
+      const widths = [...baseColumnWidths];
+      const heights = [...baseRowHeights];
+      const resizedRows = new Set();
       editableElements.forEach((element) => {
-        const { column, row } = cellGeometry(element);
-        if (column) restoreStyles(column, originalColumnStyles.get(column), columnStyleProperties);
-        if (row) restoreStyles(row, originalRowStyles.get(row), rowStyleProperties);
-      });
-      editableElements.forEach((element) => {
+        if (!element.dataset.layoutId.startsWith("cell-")) return;
         const values = normalizedSettings(state[element.dataset.layoutId]);
         const { column, row } = cellGeometry(element);
-        if (values.width > 0 && column) column.style.setProperty("width", `${values.width}px`, "important");
-        if (values.height > 0 && row) row.style.setProperty("height", `${values.height}px`, "important");
+        if (values.width > 0 && column) widths[tableColumns.indexOf(column)] = values.width;
+        if (values.height > 0 && row) {
+          const index = tableRows.indexOf(row);
+          heights[index] = values.height;
+          resizedRows.add(index);
+        }
       });
+      tableColumns.forEach((col, index) => {
+        const width = normalizedSettings(state[`column-${columnName(index)}`]).width;
+        if (width) widths[index] = Math.max(18, width);
+        col.style.setProperty("width", `${widths[index]}px`, "important");
+      });
+      tableRows.forEach((row, index) => {
+        const height = normalizedSettings(state[`row-${index + 1}`]).height;
+        if (height) {
+          heights[index] = Math.max(18, height);
+          resizedRows.add(index);
+        }
+        row.style.setProperty("height", `${heights[index]}px`, "important");
+        Array.from(row.cells).filter((cell) => cell.rowSpan === 1).forEach((cell) => {
+          const content = cell.querySelector(":scope > .excel-cell-content");
+          if (!content) return;
+          content.style.removeProperty("max-height");
+          content.style.removeProperty("overflow");
+          if (resizedRows.has(index)) {
+            content.style.setProperty("max-height", `${Math.max(0, heights[index] - 5)}px`, "important");
+            content.style.setProperty("overflow", "hidden");
+          }
+        });
+      });
+      const signature = preview.querySelector('[data-template="recibo-metales"] [data-layout-id="image-2"]');
+      const signatureBase = gridImages.find((item) => item.image === signature);
+      const signatureSettings = normalizedSettings(state["image-2"]);
+      if (signature && !resizedRows.has(46) && !signatureSettings.hidden) {
+        const height = signatureSettings.height || signatureBase.height;
+        const top = signatureBase.top + anchorShift(signatureBase.top, baseRowHeights, heights);
+        const bottom = top + signatureSettings.y + height * (1 + signatureSettings.scale) / 2;
+        heights[46] += Math.max(0, bottom + 8 - heights.slice(0, 47).reduce((sum, value) => sum + value, 0));
+        tableRows[46].style.setProperty("height", `${heights[46]}px`, "important");
+      }
+      if (table) {
+        const width = `${widths.reduce((total, value) => total + value, 0)}px`;
+        table.style.display = "block";
+        table.style.position = "relative";
+        table.style.setProperty("width", width, "important");
+        table.style.height = `${heights.reduce((total, value) => total + value, 0)}px`;
+        Array.from(table.tBodies).forEach((body) => { body.style.display = "block"; });
+        table.querySelector("colgroup").style.display = "none";
+        table.closest(".doc-sheet").style.setProperty("width", width, "important");
+        tableRows.forEach((row, index) => {
+          row.style.display = "block";
+          row.style.position = "absolute";
+          row.style.left = "0";
+          row.style.top = `${heights.slice(0, index).reduce((sum, value) => sum + value, 0)}px`;
+          row.style.width = "100%";
+        });
+        gridCells.forEach(({ cell, row, column, rowspan, colspan, vertical }) => {
+          cell.style.display = "flex";
+          cell.style.flexDirection = "column";
+          cell.style.justifyContent = { top: "flex-start", middle: "center", bottom: "flex-end" }[vertical];
+          cell.style.setProperty("position", "absolute", "important");
+          cell.style.left = `${widths.slice(0, column).reduce((sum, value) => sum + value, 0)}px`;
+          cell.style.top = "0";
+          cell.style.setProperty("width", `${widths.slice(column, column + colspan).reduce((sum, value) => sum + value, 0)}px`, "important");
+          cell.style.setProperty("height", `${heights.slice(row, row + rowspan).reduce((sum, value) => sum + value, 0)}px`, "important");
+          cell.style.minWidth = "0";
+          cell.style.minHeight = "0";
+        });
+        gridWidths = widths;
+        gridHeights = heights;
+        gridImages.forEach(({ image, left, top }) => {
+          image.style.setProperty("left", `${left + anchorShift(left, baseColumnWidths, widths)}px`, "important");
+          image.style.setProperty("top", `${top + anchorShift(top, baseRowHeights, heights)}px`, "important");
+        });
+      }
+      refreshGridRulers();
+    }
+
+    function columnName(index) {
+      let name = "";
+      for (let number = index + 1; number > 0; number = Math.floor((number - 1) / 26)) {
+        name = String.fromCharCode(65 + (number - 1) % 26) + name;
+      }
+      return name;
+    }
+
+    function anchorShift(offset, original, resized) {
+      let boundary = 0;
+      for (let index = 0; index < original.length; index++) {
+        if (offset < boundary + original[index]) {
+          return resized.slice(0, index).reduce((sum, value) => sum + value, 0) - boundary;
+        }
+        boundary += original[index];
+      }
+      return 0;
+    }
+
+    function dimensionId(axis, index) {
+      return axis === "column" ? `column-${columnName(index)}` : `row-${index + 1}`;
+    }
+
+    function chooseDimension(axis, index) {
+      (axis === "column" ? columnSelect : rowSelect).value = String(index);
+      refreshGridRulers();
+    }
+
+    function resizeDimension(axis, index, rawValue) {
+      const value = Math.max(18, Math.min(1200, Math.round(numberValue(rawValue, 18))));
+      const id = dimensionId(axis, index);
+      state[id] = normalizedSettings({ ...state[id], [axis === "column" ? "width" : "height"]: value });
+      refreshGeometry();
+      syncState();
+    }
+
+    function resetDimension(axis, index) {
+      delete state[dimensionId(axis, index)];
+      Object.keys(state).forEach((id) => {
+        const cell = id.match(/^cell-([A-Z]+)(\d+)$/);
+        if (!cell) return;
+        if (axis === "column" && excelColumnNumber(cell[1]) === index + 1) state[id].width = 0;
+        if (axis === "row" && Number(cell[2]) === index + 1) state[id].height = 0;
+      });
+      refreshGeometry();
+      syncState();
+    }
+
+    function refreshGridRulers() {
+      if (!gridRulers || gridRulers.hidden) return;
+      gridHeaders.forEach(({ axis, index, header, handle }) => {
+        const dimensions = axis === "column" ? gridWidths : gridHeights;
+        const size = dimensions[index];
+        const offset = dimensions.slice(0, index).reduce((sum, value) => sum + value, 0);
+        if (axis === "column") {
+          header.style.cssText = `left:${offset}px;top:-24px;width:${size}px;height:24px`;
+        } else {
+          header.style.cssText = `left:-32px;top:${offset}px;width:32px;height:${size}px`;
+        }
+        const selected = Number((axis === "column" ? columnSelect : rowSelect).value) === index;
+        header.classList.toggle("is-active", selected);
+        handle.setAttribute("aria-valuenow", String(Math.round(size)));
+        if (selected) (axis === "column" ? columnWidth : rowHeight).value = String(Math.round(size));
+      });
+    }
+
+    function initializeGridRulers() {
+      if (!table) {
+        document.querySelector('[data-layout-mode][value="grid"]').closest("label").hidden = true;
+        return;
+      }
+      gridRulers = document.createElement("div");
+      gridRulers.className = "layout-grid-rulers";
+      gridRulers.hidden = true;
+      table.closest(".doc-sheet").appendChild(gridRulers);
+      ["column", "row"].forEach((axis) => {
+        const targets = axis === "column" ? tableColumns : tableRows;
+        const select = axis === "column" ? columnSelect : rowSelect;
+        targets.forEach((_target, index) => {
+          const label = axis === "column" ? columnName(index) : String(index + 1);
+          select.appendChild(new Option(label, String(index)));
+          const header = document.createElement("div");
+          header.className = "layout-grid-header";
+          header.textContent = label;
+          header.addEventListener("click", () => chooseDimension(axis, index));
+          const handle = document.createElement("button");
+          handle.type = "button";
+          handle.className = `layout-grid-resize is-${axis}`;
+          handle.setAttribute("role", "separator");
+          handle.setAttribute("aria-label", `Tamaño de ${axis === "column" ? "columna" : "fila"} ${label}`);
+          handle.setAttribute("aria-orientation", axis === "column" ? "vertical" : "horizontal");
+          handle.setAttribute("aria-valuemin", "18");
+          handle.setAttribute("aria-valuemax", "1200");
+          handle.addEventListener("pointerdown", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            chooseDimension(axis, index);
+            resizeState = { axis, index, pointerId: event.pointerId, start: axis === "column" ? event.clientX : event.clientY,
+              size: Number((axis === "column" ? columnWidth : rowHeight).value) };
+            canvas.setPointerCapture(event.pointerId);
+          });
+          handle.addEventListener("keydown", (event) => {
+            const forward = axis === "column" ? "ArrowRight" : "ArrowDown";
+            const backward = axis === "column" ? "ArrowLeft" : "ArrowUp";
+            if (![forward, backward].includes(event.key)) return;
+            event.preventDefault();
+            chooseDimension(axis, index);
+            const value = Number((axis === "column" ? columnWidth : rowHeight).value);
+            resizeDimension(axis, index, value + (event.key === forward ? 1 : -1) * (event.shiftKey ? 10 : 1));
+          });
+          header.appendChild(handle);
+          gridRulers.appendChild(header);
+          gridHeaders.push({ axis, index, header, handle });
+        });
+        select.addEventListener("change", refreshGridRulers);
+        (axis === "column" ? columnWidth : rowHeight).addEventListener("input", (event) => {
+          if (event.target.value) resizeDimension(axis, Number(select.value), event.target.value);
+        });
+        layoutEditor.querySelector(`[data-layout-${axis}-reset]`).addEventListener("click", () => {
+          const index = Number(select.value);
+          resetDimension(axis, index);
+        });
+      });
+      document.fonts?.ready.then(refreshGeometry);
+      window.addEventListener("resize", refreshGridRulers);
     }
 
     function elementLabel(element) {
@@ -454,12 +673,6 @@
       const { cell, column, row } = cellGeometry(element);
       if (cell && !originalCellStyles.has(cell)) {
         originalCellStyles.set(cell, captureStyles(cell, cellStyleProperties));
-      }
-      if (column && !originalColumnStyles.has(column)) {
-        originalColumnStyles.set(column, captureStyles(column, columnStyleProperties));
-      }
-      if (row && !originalRowStyles.has(row)) {
-        originalRowStyles.set(row, captureStyles(row, rowStyleProperties));
       }
     }
 
@@ -492,18 +705,26 @@
         applySettings(element, state[elementId]);
       }
     });
+    initializeGridRulers();
+    refreshGeometry();
     syncState();
 
     function updateInspector(settings) {
       if (!controls) {
         return;
       }
+      const displayed = { ...settings };
+      if (selectedElement?.dataset.layoutId.startsWith("cell-")) {
+        const { column, row } = cellGeometry(selectedElement);
+        displayed.width = parseFloat(column?.style.width) || 0;
+        displayed.height = parseFloat(row?.style.height) || 0;
+      }
       controls.querySelectorAll("[data-layout-control]").forEach((control) => {
         const name = control.dataset.layoutControl;
         if (control.type === "checkbox") {
           control.checked = Boolean(settings[name]);
         } else {
-          control.value = settings[name] ?? "";
+          control.value = displayed[name] ?? "";
         }
       });
       if (scaleOutput) {
@@ -573,6 +794,19 @@
         return;
       }
       const elementId = selectedElement.dataset.layoutId;
+      const geometry = cellGeometry(selectedElement);
+      if (elementId.startsWith("cell-")) {
+        if ("width" in changes) {
+          const index = tableColumns.indexOf(geometry.column);
+          if (index >= 0) resizeDimension("column", index, changes.width || baseColumnWidths[index]);
+          changes.width = 0;
+        }
+        if ("height" in changes) {
+          const index = tableRows.indexOf(geometry.row);
+          if (index >= 0) resizeDimension("row", index, changes.height || baseRowHeights[index]);
+          changes.height = 0;
+        }
+      }
       const settings = normalizedSettings(state[elementId]);
       state[elementId] = normalizedSettings({ ...settings, ...changes });
       applySettings(selectedElement, state[elementId]);
@@ -582,6 +816,7 @@
     }
 
     preview?.addEventListener("pointerdown", (event) => {
+      if (event.target.closest(".layout-grid-rulers") || layoutEditor.dataset.selectionMode === "grid") return;
       const directElement = event.target.closest("[data-layout-id]");
       const cell = event.target.closest("[data-cell]");
       let element = directElement || cell?.querySelector("[data-layout-id]");
@@ -605,6 +840,12 @@
     });
 
     document.addEventListener("pointermove", (event) => {
+      if (resizeState && event.pointerId === resizeState.pointerId) {
+        const { axis, index, start, size } = resizeState;
+        const current = axis === "column" ? event.clientX : event.clientY;
+        resizeDimension(axis, index, size + (current - start) / numberValue(zoomControl.value, 1));
+        return;
+      }
       if (!dragState || event.pointerId !== dragState.pointerId || !selectedElement) {
         return;
       }
@@ -616,6 +857,7 @@
     });
 
     function endDrag(event) {
+      if (resizeState && event.pointerId === resizeState.pointerId) resizeState = null;
       if (dragState && event.pointerId === dragState.pointerId) {
         dragState = null;
       }
@@ -752,6 +994,11 @@
         return;
       }
       delete state[selectedElement.dataset.layoutId];
+      if (selectedElement.dataset.layoutId.startsWith("cell-")) {
+        const { column, row } = cellGeometry(selectedElement);
+        if (column) resetDimension("column", tableColumns.indexOf(column));
+        if (row) resetDimension("row", tableRows.indexOf(row));
+      }
       if (!selectedElement.hasAttribute("data-layout-character")) {
         const prefix = `char-${selectedElement.dataset.layoutId}-`;
         Object.keys(state).filter((key) => key.startsWith(prefix)).forEach((key) => delete state[key]);
@@ -769,6 +1016,8 @@
         selectedElement?.classList.remove("layout-selected");
         characterMode = control.value === "character";
         layoutEditor.dataset.selectionMode = control.value;
+        if (gridRulers) gridRulers.hidden = control.value !== "grid";
+        gridTools.hidden = control.value !== "grid";
         editableElements.forEach((element) => applySettings(element, state[element.dataset.layoutId]));
         refreshGeometry();
         const parent = elementForId(parentId);
@@ -780,6 +1029,7 @@
     zoomControl?.addEventListener("change", () => {
       preview?.style.setProperty("--editor-zoom", zoomControl.value);
       canvas?.style.setProperty("--editor-zoom", zoomControl.value);
+      refreshGridRulers();
     });
 
     templateControl?.addEventListener("change", () => {

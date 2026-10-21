@@ -37,7 +37,7 @@ DASHBOARD_OVERRIDE_NUMBER_FIELDS = (
     "finos_oro",
     "finos_plata",
 )
-LAYOUT_ELEMENT_ID_RE = re.compile(r"^(?:cell-[A-Z]{1,3}\d+|image-[a-z0-9-]+|block-[a-z0-9-]+|(?:text|char)-[A-Za-z0-9-]+)$")
+LAYOUT_ELEMENT_ID_RE = re.compile(r"^(?:cell-[A-Z]{1,3}\d+|column-[A-Z]{1,3}|row-[1-9]\d{0,3}|image-[a-z0-9-]+|block-[a-z0-9-]+|(?:text|char)-[A-Za-z0-9-]+)$")
 LAYOUT_ALIGNMENTS = {"", "left", "center", "right"}
 
 
