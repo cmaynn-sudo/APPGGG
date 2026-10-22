@@ -20,7 +20,7 @@
   </div>
   <div class="header-actions">
     <a class="button button-secondary" href="/entregas" data-tooltip="Volver a la biblioteca de entregas">Carpetas</a>
-    <a class="button" href="{{ folder.zip_url }}" data-tooltip="Descargar la carpeta completa">Descargar ZIP</a>
+    <a class="button" href="{{ folder.zip_url }}" data-tooltip="Preparar y descargar todos los documentos de la carpeta">{{ icons.icon("download") }}<span>Descargar ZIP</span></a>
     {% if folder.source == "web" %}
     <form class="inline-action-form" method="post" action="/documentos/{{ 'reabrir' if folder.finalizada else 'finalizar' }}">
       <input type="hidden" name="entrega_id" value="{{ folder.id }}">

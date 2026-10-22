@@ -5,6 +5,7 @@ import html as html_lib
 import io
 import math
 import re
+import threading
 from datetime import date
 from functools import lru_cache
 from html.parser import HTMLParser
@@ -23,6 +24,8 @@ env = Environment(
     autoescape=select_autoescape(["html", "xml"]),
     undefined=ChainableUndefined,
 )
+
+PDF_RENDER_LOCK = threading.Lock()
 
 
 def template_sample_context(slug: str) -> dict:
@@ -47,6 +50,7 @@ def render_print_html(
     include_print_scale: bool = True,
     page_size: str | None = None,
     page_margin: str | None = None,
+    store: dict | None = None,
 ) -> str:
     spec = TEMPLATE_BY_SLUG[slug]
     data = template_sample_context(slug)
@@ -55,8 +59,8 @@ def render_print_html(
     body = prepare_template_layout(env.get_template(spec.render_template_name).render(**data))
     import data_store
 
-    layout = data_store.get_template_layout(slug)
-    assets = data_store.get_template_assets(slug)
+    layout = data_store.get_template_layout(slug, store=store)
+    assets = data_store.get_template_assets(slug, store=store)
     body = apply_template_content_overrides(body, layout, assets)
     print_css = (STATIC_DIR / "print.css").read_text(encoding="utf-8")
     scale_css = print_scale_css(slug, layout) if include_print_scale else ""
@@ -581,20 +585,26 @@ def save_print_html(slug: str, output_path: Path, context: dict | None = None) -
     return output_path
 
 
-def render_print_pdf(slug: str, context: dict | None = None) -> bytes:
+def render_print_pdf(slug: str, context: dict | None = None, *, store: dict | None = None) -> bytes:
+    # The free server must not render several font/image-heavy PDFs concurrently.
+    with PDF_RENDER_LOCK:
+        return _render_print_pdf(slug, context, store=store)
+
+
+def _render_print_pdf(slug: str, context: dict | None = None, *, store: dict | None = None) -> bytes:
     spec = TEMPLATE_BY_SLUG[slug]
     data = template_sample_context(slug)
     if context:
         data.update(context)
     try:
-        return render_weasy_pdf(slug, data)
+        return render_weasy_pdf(slug, data, store=store)
     except ImportError:
         pdf_error = "WeasyPrint no está instalado."
     except Exception as exc:
         pdf_error = str(exc)
     import data_store
 
-    if data_store.get_template_layout(slug).get("elements") or data_store.get_template_assets(slug):
+    if data_store.get_template_layout(slug, store=store).get("elements") or data_store.get_template_assets(slug, store=store):
         raise RuntimeError(
             "No se pudo exportar el diseño guardado. Verifica el motor WeasyPrint y sus "
             "bibliotecas en Render (despliegue Docker). No se generó un PDF simplificado "
@@ -614,10 +624,14 @@ def render_print_pdf(slug: str, context: dict | None = None) -> bytes:
     raise RuntimeError("No hay motor PDF disponible para este documento.")
 
 
-def render_weasy_pdf(slug: str, context: dict | None = None) -> bytes:
+def render_weasy_pdf(slug: str, context: dict | None = None, *, store: dict | None = None) -> bytes:
     from weasyprint import HTML
+    import data_store
 
-    zoom = pdf_zoom(slug)
+    if store is None:
+        store = data_store.load_store()
+    layout = data_store.get_template_layout(slug, store=store)
+    zoom = pdf_zoom(slug, layout)
     page_size, page_margin = pdf_page_box(slug, zoom)
     html = absolutize_static_urls(
         render_print_html(
@@ -626,6 +640,7 @@ def render_weasy_pdf(slug: str, context: dict | None = None) -> bytes:
             include_print_scale=False,
             page_size=page_size,
             page_margin=page_margin,
+            store=store,
         )
     )
     return HTML(string=html, base_url=WEBAPP_DIR.as_uri()).write_pdf(zoom=zoom)

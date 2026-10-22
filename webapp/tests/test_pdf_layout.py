@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import io
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -11,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import app
 import data_store
+import delivery_export
 import renderer
 
 
@@ -27,10 +29,12 @@ class DownloadLayoutTests(unittest.TestCase):
         entrega = {"id": "qa", "numero": 1, "fecha": "2026-01-12", "items": [
             {"id": "test", "proveedor": "PROVEEDOR DE PRUEBA", "codigo": "QA-1", "peso_ini": 1000, "peso_fin": 900},
         ]}
-        with patch.object(data_store, "load_store", return_value={}), patch.object(renderer, "render_print_pdf", return_value=b"%PDF-test") as render:
-            entries = handler.generated_zip_entries(entrega)
+        with tempfile.TemporaryDirectory() as directory, patch.object(renderer, "render_print_pdf", return_value=b"%PDF-test") as render:
+            entries = delivery_export.generated_documents(entrega, {})
+            delivery_export.build_archive(Path(directory) / "entrega.zip", entries, {}, lambda *_: None)
         self.assertEqual([call.args[0] for call in render.call_args_list], ["preliminares", "recibo-metales"])
         self.assertEqual(len(entries), 2)
+        self.assertTrue(all(call.kwargs == {"store": {}} for call in render.call_args_list))
 
     @unittest.skipUnless(importlib.util.find_spec("weasyprint"), "Requiere el motor PDF de Render")
     def test_pdf_embeds_document_font_and_honors_saved_signature_and_grid(self) -> None:
@@ -41,7 +45,7 @@ class DownloadLayoutTests(unittest.TestCase):
         from pypdf import PdfReader
 
         layout = {"elements": {"image-2": {"x": 15, "y": 20, "scale": 1}, "column-B": {"width": 120}}}
-        with patch.object(data_store, "get_template_layout", return_value=layout), patch.object(data_store, "get_template_assets", return_value={}):
+        with patch.object(data_store, "load_store", return_value={}), patch.object(data_store, "get_template_layout", return_value=layout), patch.object(data_store, "get_template_assets", return_value={}):
             pdf = renderer.render_print_pdf("recibo-metales")
             html = renderer.absolutize_static_urls(renderer.render_print_html("recibo-metales", include_print_scale=False))
         reader = PdfReader(io.BytesIO(pdf))

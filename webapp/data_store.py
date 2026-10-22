@@ -41,10 +41,10 @@ LAYOUT_ELEMENT_ID_RE = re.compile(r"^(?:cell-[A-Z]{1,3}\d+|column-[A-Z]{1,3}|row
 LAYOUT_ALIGNMENTS = {"", "left", "center", "right"}
 
 
-def _empty_store() -> dict[str, Any]:
+def _empty_store(*, include_catalogs: bool = True) -> dict[str, Any]:
     return {
-        "sociedades": core.read_sociedades(),
-        "regalias": core.read_regalias(),
+        "sociedades": core.read_sociedades() if include_catalogs else [],
+        "regalias": core.read_regalias() if include_catalogs else [],
         "boletin_settings": dict(DEFAULT_BOLETIN_SETTINGS),
         "entregas": [],
         "local_folders": [],
@@ -57,10 +57,14 @@ def _empty_store() -> dict[str, Any]:
 
 
 def normalize_store(store: dict[str, Any], sync_backup: bool = True) -> dict[str, Any]:
-    defaults = _empty_store()
+    defaults = _empty_store(include_catalogs=False)
     changed = False
     for key, value in defaults.items():
         if key not in store:
+            if key == "sociedades":
+                value = core.read_sociedades()
+            elif key == "regalias":
+                value = core.read_regalias()
             store[key] = value
             changed = True
     settings = store.get("boletin_settings")
@@ -157,7 +161,7 @@ def get_regalias_for_month(store: dict[str, Any], mes: str) -> dict[str, Any]:
 
 
 def get_boletin_settings(store: dict[str, Any] | None = None) -> dict[str, Any]:
-    data = store or load_store()
+    data = store if store is not None else load_store()
     settings = dict(DEFAULT_BOLETIN_SETTINGS)
     saved = data.get("boletin_settings") or {}
     if isinstance(saved, dict):
@@ -239,7 +243,7 @@ def delete_dashboard_override(quality_id: str) -> None:
 def get_template_layout(slug: str, store: dict[str, Any] | None = None) -> dict[str, Any]:
     if slug not in TEMPLATE_BY_SLUG:
         return {"elements": {}}
-    data = store or load_store()
+    data = store if store is not None else load_store()
     layout = data.get("template_layouts", {}).get(slug, {})
     if not isinstance(layout, dict):
         return {"elements": {}}
@@ -338,7 +342,7 @@ def reset_template_layout(slug: str) -> None:
 def get_template_assets(slug: str, store: dict[str, Any] | None = None) -> dict[str, dict[str, str]]:
     if slug not in TEMPLATE_BY_SLUG:
         return {}
-    data = store or load_store()
+    data = store if store is not None else load_store()
     assets = data.get("template_assets", {}).get(slug, {})
     if not isinstance(assets, dict):
         return {}
@@ -1097,8 +1101,8 @@ def save_uploaded_file(
     return file_info
 
 
-def find_uploaded_file(file_id: str) -> tuple[dict[str, Any], Path] | tuple[None, None]:
-    store = load_store()
+def find_uploaded_file(file_id: str, store: dict[str, Any] | None = None) -> tuple[dict[str, Any], Path] | tuple[None, None]:
+    store = store if store is not None else load_store()
     for file_info in store.get("uploaded_files", []):
         if file_info.get("id") != file_id:
             continue

@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import io
 import mimetypes
 import os
 import re
-import zipfile
+import shutil
 from datetime import date, datetime
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -21,6 +20,7 @@ import calculations
 import core
 import data_store
 import document_library
+import delivery_export
 import historical_import
 import persistence
 import renderer
@@ -110,6 +110,8 @@ class RecepcionHandler(BaseHTTPRequestHandler):
                 self.download_state_backup()
             elif path == "/entregas":
                 self.render_entregas(query)
+            elif path.startswith("/descargas/"):
+                self.serve_delivery_export(path)
             elif path.startswith("/entregas/web/") and path.endswith("/descargar"):
                 folder_id = unquote(path.removeprefix("/entregas/web/").removesuffix("/descargar").strip("/"))
                 self.download_folder_zip("web", folder_id)
@@ -852,44 +854,50 @@ class RecepcionHandler(BaseHTTPRequestHandler):
         if not detail:
             self.send_error(HTTPStatus.NOT_FOUND, "Entrega no encontrada")
             return
-        buffer = io.BytesIO()
-        with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-            if source == "web":
-                entrega = detail.get("entrega", {})
-                for name, content in self.generated_zip_entries(entrega):
-                    zf.writestr(name, content)
-            for doc in detail.get("docs", []):
-                if doc.get("kind") == "imported":
-                    _file, path = document_library.find_imported_file(doc.get("id", ""))
-                    if path:
-                        zf.write(path, f"{doc.get('category', 'Archivos')}/{doc.get('name', path.name)}")
-                if doc.get("kind") == "uploaded":
-                    _file, path = data_store.find_uploaded_file(doc.get("id", ""))
-                    if path:
-                        archive_path = doc.get("archive_path") or f"{doc.get('category', 'Archivos')}/{doc.get('name', path.name)}"
-                        zf.write(path, archive_path)
-        name = self.safe_download_name(detail.get("name", "entrega")) + ".zip"
-        self.send_bytes(buffer.getvalue(), "application/zip", filename=name, attachment=True)
+        try:
+            job = delivery_export.manager.start(
+                self.current_user()["username"], source, folder_id, detail, data_store.load_store(),
+            )
+        except ValueError as exc:
+            self.render_error(str(exc))
+            return
+        self.redirect(f"/descargas/{job['id']}")
 
-    def generated_zip_entries(self, entrega: dict) -> list[tuple[str, bytes]]:
-        entries: list[tuple[str, bytes]] = []
-        delivery_date = self.entrega_date(entrega)
-        if entrega.get("items"):
-            context = calculations.preliminares_context(entrega.get("items", []), current=delivery_date)
-            context.update({"entrega": entrega.get("numero", ""), "fecha": entrega.get("fecha", "")})
-            entries.append((f"Preliminares/PRELIMINARES - {entrega.get('numero', '')} ({entrega.get('fecha', '')}).pdf", renderer.render_print_pdf("preliminares", context)))
-        store = data_store.load_store()
-        for item in entrega.get("items", []):
-            barra = item.get("barra", item.get("codigo", ""))
-            proveedor = item.get("proveedor", "RECIBO")
-            entries.append((f"Recibos de metales/{proveedor} ({barra}).pdf", renderer.render_print_pdf("recibo-metales", calculations.recibo_context(item, current=delivery_date))))
-            if item.get("ley_au") not in ("", None) and item.get("ley_ag") not in ("", None):
-                entries.append((f"Leyes/REPORTE LEYES - {barra}.pdf", renderer.render_print_pdf("reporte-analisis", calculations.reporte_analisis_context(item, current=delivery_date))))
-                parametros = entrega.get("parametros", {})
-                regalias = data_store.get_regalias_for_month(store, parametros.get("mes_regalias", entrega.get("month", "")))
-                settings = data_store.get_entrega_boletin_settings(entrega, store)
-                entries.append((f"Boletines/BOLETIN - {barra}.pdf", renderer.render_print_pdf("boletin", calculations.boletin_context(item, parametros, regalias, settings, current=delivery_date))))
-        return entries
+    def serve_delivery_export(self, path: str) -> None:
+        parts = path.strip("/").split("/")
+        job_id = parts[1] if len(parts) >= 2 else ""
+        action = parts[2] if len(parts) == 3 else ""
+        job = delivery_export.manager.get(job_id, self.current_user()["username"])
+        if not job:
+            self.render_error(
+                "La descarga temporal expiró o el servidor se reinició. Vuelve a Entregas y pulsa Descargar ZIP de nuevo. Tus datos no se han eliminado.",
+                HTTPStatus.NOT_FOUND,
+            )
+            return
+        if action == "estado":
+            self.send_json(job)
+        elif action == "archivo":
+            stream = delivery_export.manager.open_result(job_id, self.current_user()["username"])
+            if stream is None:
+                self.render_error("El ZIP aún no está listo. Espera a que termine la preparación.", HTTPStatus.CONFLICT)
+                return
+            with stream:
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", "application/zip")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Content-Length", str(os.fstat(stream.fileno()).st_size))
+                self.send_header("Content-Disposition", self.content_disposition(
+                    "attachment", self.safe_download_name(job["name"]) + ".zip",
+                ))
+                self.end_headers()
+                try:
+                    shutil.copyfileobj(stream, self.wfile, length=256 * 1024)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+        elif not action and len(parts) == 2:
+            self.render("delivery_export.html", {"job": job})
+        else:
+            self.send_error(HTTPStatus.NOT_FOUND, "Ruta no encontrada")
 
     def send_print(self, slug: str, context: dict, download: bool = False, filename: str = "") -> None:
         if download:
@@ -936,12 +944,14 @@ class RecepcionHandler(BaseHTTPRequestHandler):
 
     def send_json(self, data) -> None:
         body = core.json_response(data)
-        self.send_bytes(body, "application/json; charset=utf-8")
+        self.send_bytes(body, "application/json; charset=utf-8", no_store=True)
 
-    def send_bytes(self, body: bytes, content_type: str, filename: str = "", attachment: bool = False) -> None:
+    def send_bytes(self, body: bytes, content_type: str, filename: str = "", attachment: bool = False, *, no_store: bool = False) -> None:
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
+        if no_store:
+            self.send_header("Cache-Control", "no-store")
         if filename:
             disposition = "attachment" if attachment else "inline"
             self.send_header("Content-Disposition", self.content_disposition(disposition, filename))

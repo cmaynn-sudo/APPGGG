@@ -3730,6 +3730,26 @@ html[data-theme="dark"] .layout-canvas {
   }
 }
 
+.export-progress {
+  max-width: 880px;
+}
+
+.export-progress progress {
+  accent-color: var(--accent);
+  display: block;
+  height: 14px;
+  width: 100%;
+}
+
+.export-progress [data-export-status] {
+  min-height: 3em;
+  overflow-wrap: anywhere;
+}
+
+.export-progress [hidden] {
+  display: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   body.public-body::before,
   .login-shell *,

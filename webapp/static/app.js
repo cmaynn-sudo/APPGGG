@@ -1,4 +1,62 @@
 (() => {
+  const exportPanel = document.querySelector("[data-export-job]");
+  if (exportPanel) {
+    const heading = exportPanel.querySelector("[data-export-heading]");
+    const count = exportPanel.querySelector("[data-export-count]");
+    const progress = exportPanel.querySelector("[data-export-progress]");
+    const status = exportPanel.querySelector("[data-export-status]");
+    const download = exportPanel.querySelector("[data-export-download]");
+    const retry = exportPanel.querySelector("[data-export-retry]");
+    let downloaded = false;
+    let failures = 0;
+
+    async function checkExport() {
+      try {
+        const response = await fetch(`/descargas/${exportPanel.dataset.exportJob}/estado`, {
+          credentials: "same-origin", cache: "no-store", signal: AbortSignal.timeout(20000),
+        });
+        if (response.redirected && new URL(response.url).pathname === "/login") {
+          window.location.assign(response.url);
+          return;
+        }
+        if (response.status === 404) {
+          throw new Error("La descarga temporal expiró o el servidor se reinició. Vuelve a preparar el ZIP; tus datos siguen guardados.");
+        }
+        if (!response.ok) throw new Error("No se pudo consultar la descarga.");
+        const job = await response.json();
+        failures = 0;
+        progress.max = job.total || 1;
+        progress.value = job.completed;
+        count.textContent = `${job.completed} de ${job.total} archivos`;
+        if (job.status === "ready") {
+          heading.textContent = "ZIP listo";
+          status.textContent = "La entrega completa está lista para descargar.";
+          download.hidden = false;
+          retry.hidden = true;
+          if (!downloaded) {
+            downloaded = true;
+            window.location.assign(download.href);
+          }
+          return;
+        }
+        if (job.status === "error") {
+          heading.textContent = "No se pudo preparar el ZIP";
+          status.textContent = job.error;
+          retry.hidden = false;
+          return;
+        }
+        status.textContent = job.status === "queued" ? "En cola de preparación." : job.current || "Preparando documentos…";
+        window.setTimeout(checkExport, 2000);
+      } catch (error) {
+        failures += 1;
+        status.textContent = error.message || "No se pudo consultar la descarga.";
+        retry.hidden = false;
+        if (failures < 4) window.setTimeout(checkExport, 5000);
+      }
+    }
+    if (exportPanel.dataset.exportInitial !== "error") checkExport();
+  }
+
   const root = document.documentElement;
   const button = document.querySelector("[data-theme-toggle]");
   const themeLabel = document.querySelector("[data-theme-label]");

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% import "icons.html" as icons %}
+{% block title %}Descargar entrega{% endblock %}
+{% block content %}
+<header class="page-header">
+  <div>
+    <p class="eyebrow">Descarga de entrega</p>
+    <h1>{{ job.name }}</h1>
+  </div>
+  <a class="button button-secondary" href="/entregas/{{ job.source }}/{{ job.folder_id }}">{{ icons.icon("folder") }}<span>Volver a la carpeta</span></a>
+</header>
+<section class="panel export-progress" data-export-job="{{ job.id }}" data-export-initial="{{ job.status }}">
+  <div class="panel-title">
+    <h2 data-export-heading>{{ "ZIP listo" if job.status == "ready" else "No se pudo preparar el ZIP" if job.status == "error" else "Preparando documentos" }}</h2>
+    <span data-export-count>{{ job.completed }} de {{ job.total }} archivos</span>
+  </div>
+  <progress data-export-progress max="{{ job.total or 1 }}" value="{{ job.completed }}" aria-label="Archivos preparados"></progress>
+  <p class="muted" data-export-status role="status" aria-live="polite">{% if job.status == "error" %}{{ job.error }}{% elif job.status == "ready" %}La entrega completa está lista para descargar.{% elif job.status == "queued" %}En cola de preparación.{% else %}{{ job.current or "Preparando el primer documento…" }}{% endif %}</p>
+  <div class="row-actions">
+    <a class="button" data-export-download href="/descargas/{{ job.id }}/archivo" {% if job.status != "ready" %}hidden{% endif %}>{{ icons.icon("download") }}<span>Descargar ZIP</span></a>
+    <a class="button button-secondary" data-export-retry href="/entregas/{{ job.source }}/{{ job.folder_id }}/descargar" {% if job.status != "error" %}hidden{% endif %}>{{ icons.icon("refresh") }}<span>Volver a preparar</span></a>
+  </div>
+  {% if job.status not in ["ready", "error"] %}
+  <noscript><meta http-equiv="refresh" content="5"></noscript>
+  {% endif %}
+</section>
+{% endblock %}

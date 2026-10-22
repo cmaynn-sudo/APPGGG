@@ -18,7 +18,7 @@ import historical_import  # noqa: E402
 import persistence  # noqa: E402
 
 
-def minimal_store() -> dict:
+def minimal_store(**_kwargs) -> dict:
     return {
         "sociedades": [],
         "regalias": [],

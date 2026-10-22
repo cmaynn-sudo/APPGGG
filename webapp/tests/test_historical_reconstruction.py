@@ -14,7 +14,7 @@ import data_store  # noqa: E402
 import persistence  # noqa: E402
 
 
-def minimal_store() -> dict:
+def minimal_store(**_kwargs) -> dict:
     return {
         "sociedades": [
             {
